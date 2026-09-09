@@ -506,6 +506,11 @@ class PrayerTimesRepository(private val context: Context) {
         saveCachedPrayerData(adjusted)
 
         CoroutineScope(Dispatchers.IO).launch {
+            try {
+                com.example.utils.PrayerNotificationScheduler.scheduleAllPrayerNotifications(context)
+            } catch (e: Exception) {
+                Log.e("PrayerRepo", "Error scheduling prayer after city change", e)
+            }
             fetchPrayerTimes(city, forceRefresh = false)
         }
     }
@@ -1011,4 +1016,18 @@ class PrayerTimesRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: PrayerTimesRepository? = null
+
+        fun getInstance(context: Context): PrayerTimesRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: PrayerTimesRepository(context.applicationContext).also {
+                    INSTANCE = it
+                }
+            }
+        }
+    }
 }
+

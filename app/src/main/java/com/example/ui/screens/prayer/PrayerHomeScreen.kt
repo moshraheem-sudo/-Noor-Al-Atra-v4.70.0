@@ -360,39 +360,6 @@ fun PrayerHomeScreen(
             }
         }
 
-        if (isOfflineMode) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = AppColors.current.surface
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.current.tealGlow20)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudOff,
-                            contentDescription = "Offline",
-                            tint = AppColors.current.tealAccentLight,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = AppStrings.offlineBanner(currentLanguage),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AppColors.current.textMain,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-        }
 
         if (errorMessage != null) {
             item {

@@ -340,6 +340,7 @@ object LocationHelper {
     }
 
     private fun reverseGeocode(context: Context, latitude: Double, longitude: Double): String {
+        // 1. Android System Geocoder (Offline / System cache / Play Services)
         try {
             if (Geocoder.isPresent()) {
                 val geocoder = Geocoder(context, Locale("ar"))
@@ -350,13 +351,72 @@ object LocationHelper {
                         ?: addr.subAdminArea
                         ?: addr.adminArea
                         ?: addr.featureName
-                    if (!city.isNullOrBlank()) return city
+                    if (!city.isNullOrBlank() && city != "موقعك الحالي") return city.trim()
                 }
             }
         } catch (_: Exception) {}
 
+        // 2. Online High-Precision Reverse Geocoding via OSM Nominatim (Arabic)
+        val onlineName = fetchOnlineReverseGeocode(latitude, longitude)
+        if (!onlineName.isNullOrBlank()) {
+            return onlineName.trim()
+        }
+
+        // 3. Mathematical Nearest City / District from extensive predefined database
         val nearest = findNearestPredefinedCity(latitude, longitude)
         return nearest.nameAr
+    }
+
+    private fun fetchOnlineReverseGeocode(latitude: Double, longitude: Double): String? {
+        return try {
+            val urlString = "https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=ar&zoom=14"
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 3000
+            connection.readTimeout = 3000
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("User-Agent", "NoorAlAtraApp/4.80.0")
+
+            if (connection.responseCode == 200) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream))
+                val response = StringBuilder()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    response.append(line)
+                }
+                reader.close()
+
+                val json = JSONObject(response.toString())
+                val address = json.optJSONObject("address")
+                if (address != null) {
+                    val candidate = address.optString("city", "").ifEmpty {
+                        address.optString("town", "").ifEmpty {
+                            address.optString("district", "").ifEmpty {
+                                address.optString("municipality", "").ifEmpty {
+                                    address.optString("village", "").ifEmpty {
+                                        address.optString("hamlet", "").ifEmpty {
+                                            address.optString("suburb", "").ifEmpty {
+                                                address.optString("county", "").ifEmpty {
+                                                    address.optString("state_district", "").ifEmpty {
+                                                        address.optString("state", "")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (candidate.isNotBlank()) {
+                        return candidate
+                    }
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun findNearestPredefinedCity(latitude: Double, longitude: Double): CityLocation {

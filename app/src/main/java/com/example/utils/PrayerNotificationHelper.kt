@@ -252,7 +252,7 @@ object PrayerNotificationHelper {
     }
 
     fun showTestNotification(context: Context) {
-        val repo = com.example.data.repository.PrayerTimesRepository(context)
+        val repo = com.example.data.repository.PrayerTimesRepository.getInstance(context)
         // Directly preview the Adhan audio cleanly without any conflicting alert ringtones
         AdhanAudioService.previewMuezzin(context, repo.selectedMuezzin.value)
     }

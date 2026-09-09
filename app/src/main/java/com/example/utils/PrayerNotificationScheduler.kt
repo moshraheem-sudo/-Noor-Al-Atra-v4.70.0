@@ -24,7 +24,7 @@ object PrayerNotificationScheduler {
             cancelAllPrayerAlarms(context)
             return
         }
-        val repository = PrayerTimesRepository(context)
+        val repository = PrayerTimesRepository.getInstance(context)
         val cachedData = repository.prayerTimesData.value
         val city = repository.selectedCity.value
         if (cachedData != null) {
@@ -48,7 +48,7 @@ object PrayerNotificationScheduler {
             cancelAllPrayerAlarms(context)
             return
         }
-        val repo = PrayerTimesRepository(context)
+        val repo = PrayerTimesRepository.getInstance(context)
 
         val prayerTimeMap = listOf(
             PrayerType.FAJR to prayerData.fajir,

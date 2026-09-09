@@ -49,7 +49,7 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
                 return
             }
 
-            val repository = PrayerTimesRepository(context)
+            val repository = PrayerTimesRepository.getInstance(context)
             val config = repository.getPrayerAlarmConfig(prayerType)
 
             if (config.isEnabled) {

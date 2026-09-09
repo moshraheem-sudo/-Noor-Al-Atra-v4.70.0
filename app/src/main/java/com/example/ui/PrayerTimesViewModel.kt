@@ -42,7 +42,7 @@ enum class AppTab(val titleAr: String, val titleEn: String) {
 
 class PrayerTimesViewModel(application: Application) : AndroidViewModel(application) {
 
-    val repository = PrayerTimesRepository(application)
+    val repository = PrayerTimesRepository.getInstance(application)
 
     val themeMode: StateFlow<ThemeMode> = repository.themeMode
 

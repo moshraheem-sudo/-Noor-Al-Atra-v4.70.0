@@ -12,7 +12,7 @@ class BootReceiver : BroadcastReceiver() {
             intent.action == Intent.ACTION_MY_PACKAGE_REPLACED ||
             intent.action == "android.intent.action.QUICKBOOT_POWERON"
         ) {
-            val repository = PrayerTimesRepository(context)
+            val repository = PrayerTimesRepository.getInstance(context)
             val cachedData = repository.prayerTimesData.value
             val city = repository.selectedCity.value
             if (cachedData != null) {
