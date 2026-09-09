@@ -14,8 +14,9 @@ import com.example.R
 import com.example.data.model.PrayerTimesData
 
 object PrayerStickyNotification {
-    private const val CHANNEL_ID = "prayer_daily_times_channel"
+    private const val CHANNEL_ID = "prayer_daily_times_card_isolated_v2"
     private const val NOTIFICATION_ID = 5005
+    private const val GROUP_PRAYER_CARD = "GROUP_PRAYER_CARD_ISOLATED"
 
     fun showNotification(context: Context, data: PrayerTimesData) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -23,11 +24,12 @@ object PrayerStickyNotification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "أوقات الصلاة اليومية",
-                NotificationManager.IMPORTANCE_LOW // Low priority so it doesn't make sound/popup, just sits in center
+                "بطاقة مواقيت الصلاة المستقلة",
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "إشعار يعرض أوقات الصلوات لليوم"
+                description = "عرض بطاقة مواقيت الصلاة بشكل منفصل ودائم في مركز الإشعارات"
                 setShowBadge(false)
+                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -60,8 +62,14 @@ object PrayerStickyNotification {
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(remoteViews)
             .setContentIntent(pendingIntent)
-            .setAutoCancel(false) // stay there or dismiss? Let's make it dismissible but visible
-            .setOngoing(true) // User wants it to show up. A sticky notification implies ongoing? "اشعار عند فتح التطبيق يظهر هذا الأشعار في مركز الاشعارات...". Let's make it non-ongoing so they can swipe it if they want.
+            .setAutoCancel(false)
+            .setOngoing(true) // Keeps prayer times card permanently visible and protected from accidental dismissal
+            .setGroup(GROUP_PRAYER_CARD) // Isolated from general app notification bundle
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_ALL)
+            .setSortKey("00_PRAYER_CARD_TOP") // Pin to top
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setColor(0xFF14B8A6.toInt())
             .build()

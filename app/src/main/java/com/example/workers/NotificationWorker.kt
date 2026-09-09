@@ -71,6 +71,7 @@ class NotificationWorker(
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setGroup("GROUP_NOOR_GENERAL_NOTIFICATIONS")
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
 

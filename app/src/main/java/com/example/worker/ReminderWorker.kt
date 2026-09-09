@@ -137,6 +137,8 @@ class ReminderWorker(appContext: Context, workerParams: WorkerParameters) : Work
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setGroup("GROUP_NOOR_GENERAL_NOTIFICATIONS")
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL)

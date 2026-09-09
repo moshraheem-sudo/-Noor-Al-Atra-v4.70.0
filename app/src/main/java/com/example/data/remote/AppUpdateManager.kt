@@ -54,8 +54,18 @@ object AppUpdateManager {
 
     const val NOUR_APP_NAME = "نور العترة"
     val NOUR_CURRENT_VERSION = "v" + com.example.BuildConfig.VERSION_NAME
-    const val NOUR_CHECK_API = "https://api.github.com/repos/moshraheem-sudo/Noor-Al-Atra-/releases/latest"
-    const val NOUR_RELEASE_PAGE = "https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/latest"
+    const val NOUR_REPO_1 = "https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0"
+    const val NOUR_REPO_2 = "https://github.com/moshraheem-sudo/Noor-Al-Atra-"
+    const val NOUR_REPO_3 = "https://github.com/moshraheem-sudo/Sawt-Al-Quran-"
+
+    val NOUR_UPDATE_REPOS = listOf(
+        "moshraheem-sudo/-Noor-Al-Atra-v4.70.0",
+        "moshraheem-sudo/Noor-Al-Atra-",
+        "moshraheem-sudo/Sawt-Al-Quran-"
+    )
+
+    const val NOUR_CHECK_API = "https://api.github.com/repos/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/latest"
+    const val NOUR_RELEASE_PAGE = "https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/latest"
 
     const val PRAYER_APP_NAME = "صلاتي"
     const val PRAYER_CURRENT_VERSION = "v1.40.0"
@@ -556,66 +566,122 @@ object AppUpdateManager {
 
     suspend fun checkNourUpdate(): Result<AppReleaseInfo> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
-                .url(NOUR_CHECK_API)
-                .header("User-Agent", "SawtALQuranApp/1.40.0")
-                .header("Accept", "application/vnd.github.v3+json")
-                .build()
+            var highestTag = ""
+            var highestName = "تحديث نور العترة"
+            var highestNotes = "يتضمن هذا التحديث ميزات ومحتويات جديدة لتطبيق نور العترة."
+            var highestDownloadUrl = ""
+            var highestHtmlUrl = NOUR_RELEASE_PAGE
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext Result.success(
-                        AppReleaseInfo(
-                            appName = NOUR_APP_NAME,
-                            tagName = NOUR_CURRENT_VERSION,
-                            releaseName = "تحديث تطبيق نور العترة",
-                            releaseNotes = "تطبيق نور العترة بالأدعية والتلاوات المباركة.",
-                            downloadUrl = "https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/latest/download/app-release.apk",
-                            htmlUrl = NOUR_RELEASE_PAGE,
-                            isNewerAvailable = false
-                        )
-                    )
-                }
+            for (repo in NOUR_UPDATE_REPOS) {
+                try {
+                    val request = Request.Builder()
+                        .url("https://api.github.com/repos/$repo/releases")
+                        .header("User-Agent", "NoorAlAtraApp/${com.example.BuildConfig.VERSION_NAME}")
+                        .header("Accept", "application/vnd.github.v3+json")
+                        .build()
 
-                val bodyStr = response.body?.string() ?: ""
-                val json = JSONObject(bodyStr)
-                val tagName = json.optString("tag_name", NOUR_CURRENT_VERSION)
-                val releaseName = json.optString("name", "تحديث نور العترة")
-                val releaseNotes = json.optString("body", "يتضمن هذا التحديث ميزات ومحتويات جديدة لتطبيق نور العترة.").ifBlank {
-                    "يتضمن هذا التحديث ميزات ومحتويات جديدة لتطبيق نور العترة."
-                }
-                val htmlUrl = json.optString("html_url", NOUR_RELEASE_PAGE)
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val bodyStr = response.body?.string() ?: ""
+                            val array = org.json.JSONArray(bodyStr)
+                            for (i in 0 until array.length()) {
+                                val rel = array.getJSONObject(i)
+                                if (rel.optBoolean("draft", false)) continue
+                                val tag = rel.optString("tag_name", "").trim()
+                                val name = rel.optString("name", "تحديث نور العترة")
+                                val body = rel.optString("body", "").trim()
+                                val pageUrl = rel.optString("html_url", NOUR_RELEASE_PAGE)
 
-                var downloadUrl = ""
-                val assets = json.optJSONArray("assets")
-                if (assets != null && assets.length() > 0) {
-                    for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        val assetUrl = asset.optString("browser_download_url", "")
-                        if (assetUrl.isNotEmpty()) {
-                            downloadUrl = assetUrl
-                            break
+                                var apkUrl = ""
+                                val assets = rel.optJSONArray("assets")
+                                if (assets != null) {
+                                    for (j in 0 until assets.length()) {
+                                        val u = assets.getJSONObject(j).optString("browser_download_url", "")
+                                        if (u.contains(".apk", ignoreCase = true)) {
+                                            apkUrl = u
+                                            break
+                                        }
+                                    }
+                                }
+
+                                if (tag.isNotEmpty() && (highestTag.isEmpty() || isVersionNewer(tag, highestTag))) {
+                                    highestTag = tag
+                                    highestName = name
+                                    if (body.isNotEmpty()) highestNotes = body
+                                    highestDownloadUrl = apkUrl
+                                    highestHtmlUrl = pageUrl
+                                }
+                            }
                         }
                     }
-                }
-                if (downloadUrl.isEmpty()) {
-                    downloadUrl = "https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/latest/download/app-release.apk"
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
 
-                val isNewer = isVersionNewer(tagName, NOUR_CURRENT_VERSION)
+                // If not found yet, try /releases/latest for this repo
+                if (highestTag.isEmpty()) {
+                    try {
+                        val reqLatest = Request.Builder()
+                            .url("https://api.github.com/repos/$repo/releases/latest")
+                            .header("User-Agent", "NoorAlAtraApp/${com.example.BuildConfig.VERSION_NAME}")
+                            .header("Accept", "application/vnd.github.v3+json")
+                            .build()
 
-                Result.success(
-                    AppReleaseInfo(
-                        appName = NOUR_APP_NAME,
-                        tagName = tagName,
-                        releaseName = releaseName,
-                        releaseNotes = releaseNotes,
-                        downloadUrl = downloadUrl,
-                        htmlUrl = htmlUrl,
-                        isNewerAvailable = isNewer
-                    )
-                )
+                        client.newCall(reqLatest).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val bodyStr = response.body?.string() ?: ""
+                                val json = JSONObject(bodyStr)
+                                val tag = json.optString("tag_name", "").trim()
+                                val name = json.optString("name", "تحديث نور العترة")
+                                val body = json.optString("body", "").trim()
+                                val pageUrl = json.optString("html_url", NOUR_RELEASE_PAGE)
+
+                                var apkUrl = ""
+                                val assets = json.optJSONArray("assets")
+                                if (assets != null) {
+                                    for (j in 0 until assets.length()) {
+                                        val u = assets.getJSONObject(j).optString("browser_download_url", "")
+                                        if (u.contains(".apk", ignoreCase = true)) {
+                                            apkUrl = u
+                                            break
+                                        }
+                                    }
+                                }
+
+                                if (tag.isNotEmpty() && (highestTag.isEmpty() || isVersionNewer(tag, highestTag))) {
+                                    highestTag = tag
+                                    highestName = name
+                                    if (body.isNotEmpty()) highestNotes = body
+                                    highestDownloadUrl = apkUrl
+                                    highestHtmlUrl = pageUrl
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
+
+            val finalTag = if (highestTag.isNotEmpty()) highestTag else NOUR_CURRENT_VERSION
+            val formattedTag = if (finalTag.startsWith("v", ignoreCase = true)) finalTag else "v$finalTag"
+            if (highestDownloadUrl.isEmpty()) {
+                highestDownloadUrl = "https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/download/$formattedTag/app-release.apk"
+            }
+
+            val isNewer = isVersionNewer(finalTag, NOUR_CURRENT_VERSION)
+
+            Result.success(
+                AppReleaseInfo(
+                    appName = NOUR_APP_NAME,
+                    tagName = finalTag,
+                    releaseName = highestName,
+                    releaseNotes = highestNotes,
+                    downloadUrl = highestDownloadUrl,
+                    htmlUrl = highestHtmlUrl,
+                    isNewerAvailable = isNewer
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }

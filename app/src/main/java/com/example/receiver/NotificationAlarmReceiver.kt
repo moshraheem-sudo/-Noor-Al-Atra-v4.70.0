@@ -118,6 +118,8 @@ class NotificationAlarmReceiver : BroadcastReceiver() {
             .setContentText(reminderText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(reminderText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setGroup("GROUP_NOOR_GENERAL_NOTIFICATIONS")
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL)

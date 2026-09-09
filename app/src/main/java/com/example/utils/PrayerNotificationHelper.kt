@@ -21,6 +21,10 @@ import com.example.data.model.PrayerType
 
 object PrayerNotificationHelper {
 
+    const val GROUP_PRAYER_ALERTS = "GROUP_PRAYER_ALERTS_ISOLATED"
+    const val GROUP_PRAYER_PRE_REMINDERS = "GROUP_PRAYER_PRE_REMINDERS_ISOLATED"
+    const val GROUP_PRAYER_CALENDAR = "GROUP_PRAYER_CALENDAR_ISOLATED"
+
     const val CHANNEL_ID = "prayer_times_alerts_channel_v4"
     const val CHANNEL_NAME = "إشعارات تطبيق صلاتي"
     const val CHANNEL_DESC = "إشعارات تطبيق صلاتي ومواقيت الصلاة والمناسبات الدينية"
@@ -162,6 +166,10 @@ object PrayerNotificationHelper {
                     .bigText(body)
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setGroup(GROUP_PRAYER_PRE_REMINDERS)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_ALL)
+            .setSortKey("01_PRAYER_PRE_REMINDER")
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setSound(defaultSound)
@@ -238,6 +246,10 @@ object PrayerNotificationHelper {
                     .bigText(messageText)
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setGroup(GROUP_PRAYER_ALERTS)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_ALL)
+            .setSortKey("00_PRAYER_ALERT")
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setSound(null)

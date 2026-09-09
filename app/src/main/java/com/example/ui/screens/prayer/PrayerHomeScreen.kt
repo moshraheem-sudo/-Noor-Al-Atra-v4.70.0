@@ -73,7 +73,6 @@ import com.example.data.model.PrayerType
 import com.example.ui.theme.AppColors
 import com.example.utils.AppStrings
 import com.example.utils.PrayerCalculator
-import com.example.ui.components.CitySelectionDialog
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -101,21 +100,6 @@ fun PrayerHomeScreen(
 ) {
     val isAr = currentLanguage == AppLanguage.ARABIC
     val cityName = if (isAr) selectedCity.nameAr else selectedCity.nameEn
-    var isCityDialogOpen by remember { mutableStateOf(false) }
-
-    if (isCityDialogOpen) {
-        CitySelectionDialog(
-            currentLanguage = currentLanguage,
-            selectedCity = selectedCity,
-            onCitySelect = { city ->
-                onSelectCity(city)
-            },
-            onGpsLocate = onGpsClick,
-            isGpsLocating = isGpsLocating,
-            gpsStatusMessage = gpsStatusMessage,
-            onDismiss = { isCityDialogOpen = false }
-        )
-    }
 
     LazyColumn(
         modifier = modifier
@@ -155,7 +139,7 @@ fun PrayerHomeScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { isCityDialogOpen = true }
+                                .clickable { onGpsClick() }
                                 .padding(vertical = 4.dp, horizontal = 4.dp)
                         ) {
                             Box(
@@ -194,7 +178,7 @@ fun PrayerHomeScreen(
                                     fontSize = 22.sp
                                 )
                                 Text(
-                                    text = if (isAr) "اضغط لتغيير المدينة أو المحافظة" else "Tap to change city",
+                                    text = if (isAr) "تحديد الموقع عبر GPS (اضغط للتحديث)" else "GPS Location (Tap to update)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = AppColors.current.tealAccentLight,
                                     fontSize = 10.sp

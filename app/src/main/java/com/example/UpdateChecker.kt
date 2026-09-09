@@ -26,7 +26,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 object UpdateChecker {
-    private const val API_URL = "https://api.github.com/repos/moshraheem-sudo/Noor-Al-Atra-/releases/latest"
+    const val REPO_NOOR_NEW = "moshraheem-sudo/-Noor-Al-Atra-v4.70.0"
+    const val REPO_NOOR_MAIN = "moshraheem-sudo/Noor-Al-Atra-"
+    const val REPO_NOOR_MIRROR = "moshraheem-sudo/Sawt-Al-Quran-"
+
+    val UPDATE_REPOS = listOf(
+        REPO_NOOR_NEW,
+        REPO_NOOR_MAIN,
+        REPO_NOOR_MIRROR
+    )
+
+    private const val API_URL = "https://api.github.com/repos/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/latest"
 
     // Update state for Compose UI & In-App Popups
     var isUpdateAvailable by mutableStateOf(false)
@@ -103,97 +113,132 @@ object UpdateChecker {
         isDownloadComplete = false
         downloadProgress = 0f
         downloadedSizeMb = 0f
-        
-        val targetUrl = if (url.isNotEmpty()) url else "https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/download/$version/app-release.apk"
+
+        val formattedVersion = if (version.startsWith("v", ignoreCase = true)) version else "v$version"
+        val rawVersion = formattedVersion.removePrefix("v").removePrefix("V")
+
+        val candidateUrls = mutableListOf<String>()
+        if (url.isNotBlank()) candidateUrls.add(url)
+        // Candidate APKs from the 3 distinct repositories
+        candidateUrls.add("https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/download/$formattedVersion/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/download/$rawVersion/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/download/$formattedVersion/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/download/$rawVersion/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/latest/download/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/latest/download/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/Sawt-Al-Quran-/releases/download/$formattedVersion/app-release.apk")
+        candidateUrls.add("https://github.com/moshraheem-sudo/Sawt-Al-Quran-/releases/latest/download/app-release.apk")
 
         downloadJob = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "Update_$version.apk")
-                if (apkFile.exists()) {
-                    apkFile.delete()
-                }
+            val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "Update_$version.apk")
+            var downloadSucceeded = false
+            var lastTriedUrl = candidateUrls.first()
 
-                var urlConnection = URL(targetUrl).openConnection() as HttpURLConnection
-                currentUrlConnection = urlConnection
-                urlConnection.setRequestProperty("User-Agent", "NoorAlAtraApp/${BuildConfig.VERSION_NAME}")
-                urlConnection.connectTimeout = 15000
-                urlConnection.readTimeout = 15000
-                urlConnection.instanceFollowRedirects = true
-                urlConnection.connect()
-
-                var redirect = false
-                val status = urlConnection.responseCode
-                if (status != HttpURLConnection.HTTP_OK) {
-                    if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM || status == HttpURLConnection.HTTP_SEE_OTHER || status == 307) {
-                        redirect = true
+            for (targetUrl in candidateUrls.distinct()) {
+                if (!coroutineContext.isActive) break
+                lastTriedUrl = targetUrl
+                try {
+                    if (apkFile.exists()) {
+                        apkFile.delete()
                     }
-                }
 
-                if (redirect) {
-                    val newUrl = urlConnection.getHeaderField("Location")
-                    urlConnection.disconnect()
-                    urlConnection = URL(newUrl).openConnection() as HttpURLConnection
+                    var urlConnection = URL(targetUrl).openConnection() as HttpURLConnection
                     currentUrlConnection = urlConnection
                     urlConnection.setRequestProperty("User-Agent", "NoorAlAtraApp/${BuildConfig.VERSION_NAME}")
-                    urlConnection.connectTimeout = 15000
+                    urlConnection.connectTimeout = 12000
                     urlConnection.readTimeout = 15000
+                    urlConnection.instanceFollowRedirects = true
                     urlConnection.connect()
-                }
 
-                val contentLength = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                    urlConnection.contentLengthLong
-                } else {
-                    urlConnection.contentLength.toLong()
-                }
-                val totalBytes = if (contentLength > 0) contentLength else (24.5f * 1024 * 1024).toLong()
-                
-                withContext(Dispatchers.Main) {
-                    totalSizeMb = totalBytes / (1024f * 1024f)
-                }
+                    var redirect = false
+                    val status = urlConnection.responseCode
+                    if (status != HttpURLConnection.HTTP_OK) {
+                        if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM || status == HttpURLConnection.HTTP_SEE_OTHER || status == 307 || status == 308) {
+                            redirect = true
+                        } else {
+                            urlConnection.disconnect()
+                            continue // Try next mirror URL
+                        }
+                    }
 
-                var downloadedBytes = 0L
-                val buffer = ByteArray(8192)
+                    if (redirect) {
+                        val newUrl = urlConnection.getHeaderField("Location")
+                        urlConnection.disconnect()
+                        if (newUrl.isNullOrBlank()) continue
+                        urlConnection = URL(newUrl).openConnection() as HttpURLConnection
+                        currentUrlConnection = urlConnection
+                        urlConnection.setRequestProperty("User-Agent", "NoorAlAtraApp/${BuildConfig.VERSION_NAME}")
+                        urlConnection.connectTimeout = 12000
+                        urlConnection.readTimeout = 15000
+                        urlConnection.connect()
+                    }
 
-                urlConnection.inputStream.use { input ->
-                    apkFile.outputStream().use { output ->
-                        while (coroutineContext.isActive) {
-                            val bytesRead = input.read(buffer)
-                            if (bytesRead == -1) break
+                    if (urlConnection.responseCode != HttpURLConnection.HTTP_OK) {
+                        urlConnection.disconnect()
+                        continue // Try next candidate
+                    }
 
-                            downloadedBytes += bytesRead
-                            output.write(buffer, 0, bytesRead)
+                    val contentLength = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        urlConnection.contentLengthLong
+                    } else {
+                        urlConnection.contentLength.toLong()
+                    }
+                    val totalBytes = if (contentLength > 0) contentLength else (24.5f * 1024 * 1024).toLong()
 
-                            val currentProgress = (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                            val currentMb = downloadedBytes / (1024f * 1024f)
+                    withContext(Dispatchers.Main) {
+                        totalSizeMb = totalBytes / (1024f * 1024f)
+                    }
 
-                            withContext(Dispatchers.Main) {
-                                downloadProgress = currentProgress
-                                downloadedSizeMb = currentMb
+                    var downloadedBytes = 0L
+                    val buffer = ByteArray(8192)
+
+                    urlConnection.inputStream.use { input ->
+                        apkFile.outputStream().use { output ->
+                            while (coroutineContext.isActive) {
+                                val bytesRead = input.read(buffer)
+                                if (bytesRead == -1) break
+
+                                downloadedBytes += bytesRead
+                                output.write(buffer, 0, bytesRead)
+
+                                val currentProgress = (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                                val currentMb = downloadedBytes / (1024f * 1024f)
+
+                                withContext(Dispatchers.Main) {
+                                    downloadProgress = currentProgress
+                                    downloadedSizeMb = currentMb
+                                }
                             }
                         }
                     }
-                }
 
-                if (!coroutineContext.isActive) {
-                    apkFile.delete()
-                    return@launch
-                }
+                    if (!coroutineContext.isActive) {
+                        apkFile.delete()
+                        return@launch
+                    }
 
-                withContext(Dispatchers.Main) {
-                    isDownloading = false
-                    isDownloadComplete = true
-                    downloadProgress = 1.0f
-                    downloadedSizeMb = totalSizeMb
-                    Toast.makeText(context, "اكتمل تنزيل التحديث (100%) - اضغط تثبيت التحديث للمتابعة", Toast.LENGTH_LONG).show()
+                    if (apkFile.exists() && apkFile.length() > 1024 * 100) {
+                        downloadSucceeded = true
+                        withContext(Dispatchers.Main) {
+                            isDownloading = false
+                            isDownloadComplete = true
+                            downloadProgress = 1.0f
+                            downloadedSizeMb = totalSizeMb
+                            Toast.makeText(context, "اكتمل تنزيل التحديث (100%) - اضغط تثبيت التحديث للمتابعة", Toast.LENGTH_LONG).show()
+                        }
+                        break
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    currentUrlConnection = null
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                if (!coroutineContext.isActive) return@launch
+            }
+
+            if (!downloadSucceeded && coroutineContext.isActive) {
                 withContext(Dispatchers.Main) {
-                    startDownloadManagerFallback(context, targetUrl, "Update_$version.apk")
+                    startDownloadManagerFallback(context, lastTriedUrl, "Update_$version.apk")
                 }
-            } finally {
-                currentUrlConnection = null
             }
         }
     }
@@ -301,89 +346,93 @@ object UpdateChecker {
                 var highestNotes = ""
                 var highestApkUrl = ""
 
-                // 1. Fetch all releases from GitHub API to find the maximum version released
-                try {
-                    val listUrl = URL("https://api.github.com/repos/moshraheem-sudo/Noor-Al-Atra-/releases")
-                    val conn = listUrl.openConnection() as HttpURLConnection
-                    conn.requestMethod = "GET"
-                    conn.setRequestProperty("User-Agent", "NoorAlAtraApp/$currentVersion")
-                    conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-                    conn.connectTimeout = 12000
-                    conn.readTimeout = 12000
+                // 1. Fetch releases from all 3 configured GitHub repositories
+                for (repo in UPDATE_REPOS) {
+                    try {
+                        val listUrl = URL("https://api.github.com/repos/$repo/releases")
+                        val conn = listUrl.openConnection() as HttpURLConnection
+                        conn.requestMethod = "GET"
+                        conn.setRequestProperty("User-Agent", "NoorAlAtraApp/$currentVersion")
+                        conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
+                        conn.connectTimeout = 8000
+                        conn.readTimeout = 8000
 
-                    if (conn.responseCode == 200) {
-                        val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
-                        val releasesArray = JSONArray(jsonString)
+                        if (conn.responseCode == 200) {
+                            val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+                            val releasesArray = JSONArray(jsonString)
 
-                        for (i in 0 until releasesArray.length()) {
-                            val releaseObj = releasesArray.getJSONObject(i)
-                            if (releaseObj.optBoolean("draft", false)) continue
+                            for (i in 0 until releasesArray.length()) {
+                                val releaseObj = releasesArray.getJSONObject(i)
+                                if (releaseObj.optBoolean("draft", false)) continue
 
-                            val tag = releaseObj.optString("tag_name", "").trim()
-                            val body = releaseObj.optString("body", "").trim()
+                                val tag = releaseObj.optString("tag_name", "").trim()
+                                val body = releaseObj.optString("body", "").trim()
 
-                            var apkUrl = ""
-                            val assets = releaseObj.optJSONArray("assets")
-                            if (assets != null) {
-                                for (j in 0 until assets.length()) {
-                                    val assetUrl = assets.getJSONObject(j).optString("browser_download_url", "")
-                                    if (assetUrl.endsWith(".apk")) {
-                                        apkUrl = assetUrl
-                                        break
+                                var apkUrl = ""
+                                val assets = releaseObj.optJSONArray("assets")
+                                if (assets != null) {
+                                    for (j in 0 until assets.length()) {
+                                        val assetUrl = assets.getJSONObject(j).optString("browser_download_url", "")
+                                        if (assetUrl.endsWith(".apk")) {
+                                            apkUrl = assetUrl
+                                            break
+                                        }
+                                    }
+                                }
+
+                                if (tag.isNotEmpty()) {
+                                    if (highestTag.isEmpty() || isNewerVersion(tag, highestTag)) {
+                                        highestTag = tag
+                                        highestNotes = body
+                                        highestApkUrl = apkUrl
                                     }
                                 }
                             }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
 
-                            if (tag.isNotEmpty()) {
-                                if (highestTag.isEmpty() || isNewerVersion(tag, highestTag)) {
+                    // Also check /releases/latest for this repo if nothing found yet
+                    if (highestTag.isEmpty()) {
+                        try {
+                            val latestUrl = URL("https://api.github.com/repos/$repo/releases/latest")
+                            val conn = latestUrl.openConnection() as HttpURLConnection
+                            conn.requestMethod = "GET"
+                            conn.setRequestProperty("User-Agent", "NoorAlAtraApp/$currentVersion")
+                            conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
+                            conn.connectTimeout = 8000
+                            conn.readTimeout = 8000
+
+                            if (conn.responseCode == 200) {
+                                val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+                                val jsonObj = JSONObject(jsonString)
+                                val tag = jsonObj.optString("tag_name", "").trim()
+                                val body = jsonObj.optString("body", "").trim()
+                                var apkUrl = ""
+                                val assets = jsonObj.optJSONArray("assets")
+                                if (assets != null) {
+                                    for (j in 0 until assets.length()) {
+                                        val urlStr = assets.getJSONObject(j).optString("browser_download_url", "")
+                                        if (urlStr.endsWith(".apk")) {
+                                            apkUrl = urlStr
+                                            break
+                                        }
+                                    }
+                                }
+                                if (tag.isNotEmpty() && (highestTag.isEmpty() || isNewerVersion(tag, highestTag))) {
                                     highestTag = tag
                                     highestNotes = body
                                     highestApkUrl = apkUrl
                                 }
                             }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                // 2. Fallback to /releases/latest if list call returned no valid releases
-                if (highestTag.isEmpty()) {
-                    try {
-                        val latestUrl = URL(API_URL)
-                        val conn = latestUrl.openConnection() as HttpURLConnection
-                        conn.requestMethod = "GET"
-                        conn.setRequestProperty("User-Agent", "NoorAlAtraApp/$currentVersion")
-                        conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-                        conn.connectTimeout = 12000
-                        conn.readTimeout = 12000
-
-                        if (conn.responseCode == 200) {
-                            val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
-                            val jsonObj = JSONObject(jsonString)
-                            val tag = jsonObj.optString("tag_name", "").trim()
-                            val body = jsonObj.optString("body", "").trim()
-                            var apkUrl = ""
-                            val assets = jsonObj.optJSONArray("assets")
-                            if (assets != null) {
-                                for (j in 0 until assets.length()) {
-                                    val urlStr = assets.getJSONObject(j).optString("browser_download_url", "")
-                                    if (urlStr.endsWith(".apk")) {
-                                        apkUrl = urlStr
-                                        break
-                                    }
-                                }
-                            }
-                            highestTag = tag
-                            highestNotes = body
-                            highestApkUrl = apkUrl
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
                     }
                 }
 
-                // 3. Ensure target baseline version is evaluated if online releases are empty or smaller
+                // 2. Fallback baseline version if needed
                 if (highestTag.isEmpty() || isNewerVersion(targetVersion, highestTag)) {
                     highestTag = if (targetVersion.startsWith("v", ignoreCase = true)) targetVersion else "v$targetVersion"
                     if (highestNotes.isEmpty()) {
@@ -391,10 +440,10 @@ object UpdateChecker {
                     }
                 }
 
-                // 4. Set fallback APK download URL if none found directly from assets
+                // 3. Set fallback APK download URL if none found directly from assets
                 if (highestApkUrl.isEmpty()) {
                     val formattedTag = if (highestTag.startsWith("v", ignoreCase = true)) highestTag else "v$highestTag"
-                    highestApkUrl = "https://github.com/moshraheem-sudo/Noor-Al-Atra-/releases/download/$formattedTag/app-release.apk"
+                    highestApkUrl = "https://github.com/moshraheem-sudo/-Noor-Al-Atra-v4.70.0/releases/download/$formattedTag/app-release.apk"
                 }
 
                 // 5. Check if highest release is newer than currently installed app
@@ -484,9 +533,11 @@ object UpdateChecker {
             val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle("تحديث جديد متوفر 🎉 ($newVersion)")
-                .setContentText("توجد نسخة أحدث. يجب حذف النسخة الحالية أولاً ثم تثبيت الجديدة لتجنب تعارض الحزمة.")
-                .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("توجد نسخة جديدة من تطبيق نور العترة ($newVersion).\n\n⚠️ تنبيه هام: لتجنب ظهور خطأ 'تعارض الحزمة'، يرجى إلغاء تثبيت (حذف) النسخة الحالية أولاً من جهازك، ثم تثبيت النسخة الجديدة بعد تحميلها."))
+                .setContentText("توجد نسخة أحدث لتطبيق نور العترة.")
+                .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("توجد نسخة جديدة من تطبيق نور العترة ($newVersion)."))
                 .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setCategory(androidx.core.app.NotificationCompat.CATEGORY_STATUS)
+                .setGroup("GROUP_NOOR_APP_UPDATES")
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent)
 

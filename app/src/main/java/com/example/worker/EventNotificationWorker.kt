@@ -108,6 +108,8 @@ class EventNotificationWorker(
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setGroup("GROUP_NOOR_GENERAL_NOTIFICATIONS")
             .setAutoCancel(true)
             .build()
 

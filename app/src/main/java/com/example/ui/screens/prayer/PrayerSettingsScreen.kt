@@ -126,7 +126,6 @@ import com.example.utils.MuezzinDownloadStatus
 import com.example.utils.PrayerCalculator
 import com.example.utils.UpdateCheckStatus
 
-import com.example.ui.components.CitySelectionDialog
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Lock
@@ -209,22 +208,7 @@ fun PrayerSettingsScreen(
     var isCustomHijriDialogOpen by remember { mutableStateOf(false) }
     var customHijriInputText by remember { mutableStateOf(manualHijriCustomDate ?: (prayerData?.hijriDate ?: "")) }
 
-    var isCityDialogOpen by remember { mutableStateOf(false) }
     var isLocationSectionExpanded by remember { mutableStateOf(true) }
-
-    if (isCityDialogOpen) {
-        CitySelectionDialog(
-            currentLanguage = currentLanguage,
-            selectedCity = selectedCity,
-            onCitySelect = { city ->
-                onSelectCity(city)
-            },
-            onGpsLocate = onGpsLocate,
-            isGpsLocating = isGpsLocating,
-            gpsStatusMessage = gpsStatusMessage,
-            onDismiss = { isCityDialogOpen = false }
-        )
-    }
 
     // Dialog state for custom prayer alert customization
     var activeConfigPrayerType by remember { mutableStateOf<PrayerType?>(null) }
@@ -414,71 +398,43 @@ fun PrayerSettingsScreen(
                             }
                         }
 
-                        // Buttons Row: Pick City from List & Locate via GPS
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        // GPS Location Action Button
+                        Button(
+                            onClick = onGpsLocate,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("settings_gps_locate_button"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.current.tealGlow20)
                         ) {
-                            Button(
-                                onClick = { isCityDialogOpen = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("settings_choose_city_button"),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.current.tealGlow20)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.LocationOn,
-                                    contentDescription = null,
-                                    tint = AppColors.current.tealAccentLight,
-                                    modifier = Modifier.size(18.dp)
+                            if (isGpsLocating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = AppColors.current.tealAccentLight,
+                                    strokeWidth = 2.dp
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (currentLanguage == AppLanguage.ARABIC) "اختيار مدينة" else "Select City",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = if (currentLanguage == AppLanguage.ARABIC) "جارِ التحديد عبر GPS..." else "Locating via GPS...",
+                                    style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = AppColors.current.tealAccentLight
                                 )
-                            }
-
-                            Button(
-                                onClick = onGpsLocate,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("settings_gps_locate_button"),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                if (isGpsLocating) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = AppColors.current.tealAccentLight,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (currentLanguage == AppLanguage.ARABIC) "جارِ التحديد..." else "Locating...",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = AppColors.current.textTitle
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.MyLocation,
-                                        contentDescription = null,
-                                        tint = AppColors.current.textTitle,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (currentLanguage == AppLanguage.ARABIC) "تحديد بـ GPS" else "GPS Locate",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AppColors.current.textTitle
-                                    )
-                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.MyLocation,
+                                    contentDescription = null,
+                                    tint = AppColors.current.tealAccentLight,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (currentLanguage == AppLanguage.ARABIC) "تحديد الموقع الحالي عبر GPS" else "Detect Current Location via GPS",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppColors.current.tealAccentLight
+                                )
                             }
                         }
 
@@ -490,39 +446,6 @@ fun PrayerSettingsScreen(
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(horizontal = 4.dp)
                             )
-                        }
-
-                        // Explanation notice
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = AppColors.current.tealAccentLight,
-                                    modifier = Modifier.size(16.dp).padding(top = 2.dp)
-                                )
-                                Text(
-                                    text = if (currentLanguage == AppLanguage.ARABIC)
-                                        "ميزة الأمان وثبات الموقع: الموقع المحدد لن يتغير إطلاقاً بشكل تلقائي ولن يُعاد ضبطه عند انقطاع الإنترنت أو إعادة تشغيل التطبيق، بل يظل ثابتاً ومحفوظاً في ملفات النظام حتى تقوم بتغييره يدوياً أو تطلب تحديد GPS."
-                                    else
-                                        "Location Lock & Security: The selected city will never change automatically or reset when offline or upon restarting the app. It remains permanently stored in system files until you explicitly choose another city or request GPS.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.sp,
-                                    color = AppColors.current.textMuted,
-                                    lineHeight = 16.sp
-                                )
-                            }
                         }
                     }
                 }
