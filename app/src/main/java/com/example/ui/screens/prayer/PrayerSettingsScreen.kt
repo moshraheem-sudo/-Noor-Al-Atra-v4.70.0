@@ -265,7 +265,7 @@ fun PrayerSettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = if (currentLanguage == AppLanguage.ARABIC) "الموقع والمدينة الحالية (أوفلاين دائم)" else "Current Location & Offline City",
+                                text = if (currentLanguage == AppLanguage.ARABIC) "الموقع والمدينة الحالية" else "Current Location & City",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = AppColors.current.textTitle
