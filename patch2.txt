@@ -1,0 +1,11 @@
+            // Collapsible Prayer Times Card (replacing Suggestions Banner)
+            item {
+                CollapsibleHomePrayerCard(
+                    prayerData = prayerData,
+                    nextPrayer = nextPrayer,
+                    liveTime = liveTime,
+                    selectedCity = selectedCity,
+                    currentLanguage = appLanguage,
+                    onNavigateToPrayerTimes = { navController.navigate("prayer_times") }
+                )
+            }

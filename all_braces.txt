@@ -1,0 +1,3059 @@
+   1   0: @file:OptIn(ExperimentalPermissionsApi::class)
+   2   0: package com.example.ui
+   3   0: 
+   4   0: import com.example.ui.components.CollapsibleHomePrayerCard
+   5   0: import com.example.ui.PrayerTimesViewModel
+   6   0: import androidx.compose.ui.draw.rotate
+   7   0: import kotlinx.coroutines.launch
+   8   0: import kotlinx.coroutines.GlobalScope
+   9   0: import kotlinx.coroutines.Dispatchers
+  10   0: 
+  11   0: import androidx.compose.runtime.getValue
+  12   0: import androidx.compose.runtime.setValue
+  13   0: 
+  14   0: import android.Manifest
+  15   0: import android.annotation.SuppressLint
+  16   0: import android.widget.Toast
+  17   0: import androidx.compose.foundation.background
+  18   0: import androidx.compose.foundation.BorderStroke
+  19   0: import androidx.compose.foundation.border
+  20   0: import androidx.compose.foundation.clickable
+  21   0: import androidx.compose.foundation.layout.*
+  22   0: import androidx.compose.foundation.lazy.LazyColumn
+  23   0: import androidx.compose.foundation.lazy.items
+  24   0: import androidx.compose.foundation.shape.CircleShape
+  25   0: import androidx.compose.foundation.shape.RoundedCornerShape
+  26   0: import androidx.compose.material.icons.Icons
+  27   0: import androidx.compose.material.icons.automirrored.filled.ArrowBack
+  28   0: import androidx.compose.material.icons.automirrored.filled.ArrowForward
+  29   0: import androidx.compose.material.icons.automirrored.filled.MenuBook
+  30   0: import androidx.compose.material.icons.filled.*
+  31   0: import androidx.compose.material3.*
+  32   0: import androidx.compose.runtime.*
+  33   0: import androidx.compose.ui.graphics.Color
+  34   0: import androidx.compose.ui.Alignment
+  35   0: import androidx.navigation.navArgument
+  36   0: import androidx.navigation.NavType
+  37   0: import androidx.compose.ui.Modifier
+  38   0: import androidx.compose.ui.draw.alpha
+  39   0: import androidx.compose.ui.draw.clip
+  40   0: import androidx.compose.ui.platform.LocalContext
+  41   0: import androidx.compose.ui.res.painterResource
+  42   0: import androidx.compose.ui.text.font.FontWeight
+  43   0: import androidx.compose.ui.text.withStyle
+  44   0: import androidx.compose.ui.text.SpanStyle
+  45   0: import androidx.compose.ui.text.buildAnnotatedString
+  46   0: import androidx.compose.ui.unit.dp
+  47   0: import androidx.compose.ui.unit.sp
+  48   0: import androidx.compose.ui.text.style.TextOverflow
+  49   0: import androidx.lifecycle.viewmodel.compose.viewModel
+  50   0: import androidx.navigation.NavHostController
+  51   0: import androidx.navigation.compose.NavHost
+  52   0: import androidx.navigation.compose.composable
+  53   0: import androidx.navigation.compose.currentBackStackEntryAsState
+  54   0: import androidx.navigation.compose.rememberNavController
+  55   0: import androidx.compose.animation.*
+  56   0: import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+  57   0: import androidx.compose.ui.input.pointer.pointerInput
+  58   0: import com.example.data.AhlAlBaytRepository
+  59   0: import com.example.data.Person
+  60   0: import com.example.data.AladhanResponse
+  61   0: import com.example.data.getHijriMonthName
+  62   0: import com.google.accompanist.permissions.ExperimentalPermissionsApi
+  63   0: import com.google.accompanist.permissions.isGranted
+  64   0: import com.google.accompanist.permissions.rememberMultiplePermissionsState
+  65   0: import com.google.android.gms.location.LocationServices
+  66   0: 
+  67   0: data class UpcomingEvent(
+  68   0:     val event: com.example.data.HijriEvent,
+  69   0:     val daysUntil: Int,
+  70   0:     val gregorianDateStr: String,
+  71   0:     val eventDate: java.time.LocalDate,
+  72   0:     val upcomingHijriYear: Int
+  73   0: )
+  74   0: 
+  75   0: @OptIn(ExperimentalMaterial3Api::class)
+  76   0: @Composable
+  77   1: fun MainApp() {
+  78   1:     val navController = rememberNavController()
+  79   1:     val navBackStackEntry by navController.currentBackStackEntryAsState()
+  80   1:     val currentRoute = navBackStackEntry?.destination?.route
+  81   1: 
+  82   1:     val context = LocalContext.current
+  83   1:     var showNotificationDialog by remember { mutableStateOf(false) }
+  84   1:     val db = remember { com.example.data.AppDatabase.getInstance(context) }
+  85   1:     val notifications by db.notificationDao().getAllNotifications().collectAsState(initial = emptyList())
+  86   1:     val sharedPref = remember { context.getSharedPreferences("AhlAlBaytPrefs", android.content.Context.MODE_PRIVATE) }
+  87   1:     val hijriRecord by db.hijriDateRecordDao().getRecordFlow().collectAsState(initial = null)
+  88   1: 
+  89   1:     var searchQuery by remember { mutableStateOf("") }
+  90   1:     var isSearchActive by remember { mutableStateOf(false) }
+  91   1: 
+  92   1:     val activity = context as? androidx.activity.ComponentActivity
+  93   1:     val incomingIntent = activity?.intent
+  94   2:     LaunchedEffect(incomingIntent) {
+  95   3:         if (incomingIntent?.getBooleanExtra("open_prayer_times", false) == true || incomingIntent?.action == "ACTION_OPEN_PRAYER_TIMES") {
+  96   3:             navController.navigate("prayer_times")
+  97   3:             incomingIntent.removeExtra("open_prayer_times")
+  98   2:         }
+  99   1:     }
+ 100   1: 
+ 101   2:     if (showNotificationDialog) {
+ 102   2:         AlertDialog(
+ 103   2:             onDismissRequest = { showNotificationDialog = false },
+ 104   2:             title = { Text("الإشعارات") },
+ 105   3:             text = {
+ 106   4:                 if (notifications.isEmpty()) {
+ 107   4:                     Text("لا توجد إشعارات جديدة حالياً.")
+ 108   4:                 } else {
+ 109   5:                     androidx.compose.foundation.lazy.LazyColumn {
+ 110   6:                         items(notifications) { notification ->
+ 111   6:                             Card(
+ 112   6:                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+ 113   6:                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+ 114   7:                             ) {
+ 115   8:                                 Column(modifier = Modifier.padding(12.dp)) {
+ 116   8:                                     Text(notification.title, fontWeight = FontWeight.Bold, color = if (MaterialTheme.colorScheme.onBackground == androidx.compose.ui.graphics.Color.White) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary)
+ 117   8:                                     Spacer(modifier = Modifier.height(4.dp))
+ 118   8:                                     Text(notification.message, style = MaterialTheme.typography.bodyMedium)
+ 119   7:                                 }
+ 120   6:                             }
+ 121   5:                         }
+ 122   4:                     }
+ 123   3:                 }
+ 124   2:             },
+ 125   3:             confirmButton = {
+ 126   4:                 TextButton(onClick = {
+ 127   4:                     showNotificationDialog = false
+ 128   5:                     kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+ 129   5:                         db.notificationDao().markAllAsRead()
+ 130   4:                     }
+ 131   3:                 }) { Text("حسناً") }
+ 132   2:             }
+ 133   2:         )
+ 134   1:     }
+ 135   1: 
+ 136   1:     // In-App Update Notification Popup & Official Permissions Consent Dialogs
+ 137   2:     var showBackgroundOptimizationDialog by remember {
+ 138   2:         mutableStateOf(com.example.util.BackgroundOptimizationManager.shouldShowInitialPrompt(context))
+ 139   1:     }
+ 140   1: 
+ 141   2:     if (showBackgroundOptimizationDialog) {
+ 142   2:         com.example.ui.components.BackgroundOptimizationDialog(
+ 143   3:             onDismiss = {
+ 144   3:                 com.example.util.BackgroundOptimizationManager.setPromptDismissed(context, true)
+ 145   3:                 showBackgroundOptimizationDialog = false
+ 146   2:             },
+ 147   3:             onConfirm = {
+ 148   3:                 com.example.util.BackgroundOptimizationManager.setPromptDismissed(context, true)
+ 149   3:                 showBackgroundOptimizationDialog = false
+ 150   3:                 com.example.util.BackgroundOptimizationManager.requestIgnoreBatteryOptimization(context)
+ 151   3:                 com.example.data.local.NotificationSettingsManager.scheduleAllNotifications(context)
+ 152   2:             }
+ 153   2:         )
+ 154   1:     }
+ 155   1: 
+ 156   2:     if (com.example.UpdateChecker.showInAppPopup) {
+ 157   2:         InAppUpdateNotificationDialog(
+ 158   2:             onDismiss = { com.example.UpdateChecker.showInAppPopup = false }
+ 159   2:         )
+ 160   1:     }
+ 161   1: 
+ 162   2:     if (com.example.UpdateChecker.showOfficialPermissionsDialog) {
+ 163   2:         OfficialPermissionsConsentDialog(
+ 164   2:             onDismiss = { com.example.UpdateChecker.showOfficialPermissionsDialog = false },
+ 165   3:             onConfirmInstall = {
+ 166   3:                 com.example.UpdateChecker.showOfficialPermissionsDialog = false
+ 167   3:                 com.example.UpdateChecker.showInAppPopup = false
+ 168   3:                 com.example.UpdateChecker.installApk(context)
+ 169   2:             }
+ 170   2:         )
+ 171   1:     }
+ 172   1: 
+ 173   2:     IslamicBackgroundBox(modifier = Modifier.fillMaxSize()) {
+ 174   2:     Scaffold(
+ 175   2:         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+ 176   3:         topBar = {
+ 177   4:             if (currentRoute == "people" || currentRoute == "worship" || currentRoute == "figures_events") {
+ 178   5:                 if (isSearchActive) {
+ 179   5:                     TopAppBar(
+ 180   6:                         title = {
+ 181   6:                             TextField(
+ 182   6:                                 value = searchQuery,
+ 183   6:                                 onValueChange = { searchQuery = it },
+ 184   6:                                 placeholder = { Text("بحث في التطبيق...", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)) },
+ 185   6:                                 colors = TextFieldDefaults.colors(
+ 186   6:                                     focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+ 187   6:                                     unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+ 188   6:                                     disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+ 189   6:                                     focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+ 190   6:                                     unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+ 191   6:                                     focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+ 192   6:                                     unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+ 193   6:                                     cursorColor = MaterialTheme.colorScheme.onPrimaryContainer
+ 194   6:                                 ),
+ 195   6:                                 singleLine = true,
+ 196   6:                                 modifier = Modifier.fillMaxWidth()
+ 197   6:                             )
+ 198   5:                         },
+ 199   6:                         navigationIcon = {
+ 200   7:                             IconButton(onClick = {
+ 201   7:                                 isSearchActive = false
+ 202   7:                                 searchQuery = ""
+ 203   7:                             }) {
+ 204   7:                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+ 205   6:                             }
+ 206   5:                         },
+ 207   6:                         actions = {
+ 208   7:                             if (searchQuery.isNotEmpty()) {
+ 209   8:                                 IconButton(onClick = { searchQuery = "" }) {
+ 210   8:                                     Icon(Icons.Filled.Clear, contentDescription = "مسح", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+ 211   7:                                 }
+ 212   6:                             }
+ 213   5:                         },
+ 214   5:                         colors = TopAppBarDefaults.topAppBarColors(
+ 215   5:                             containerColor = MaterialTheme.colorScheme.primaryContainer
+ 216   5:                         ),
+ 217   5:                         modifier = Modifier.clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+ 218   5:                     )
+ 219   5:                 } else {
+ 220   5:                     TopAppBar(
+ 221   6:                         title = {
+ 222   7:                             Row(verticalAlignment = Alignment.CenterVertically) {
+ 223   7:                                 androidx.compose.foundation.Image(
+ 224   7:                                     painter = painterResource(id = com.example.R.drawable.noor),
+ 225   7:                                     contentDescription = "شعار نور العترة",
+ 226   7:                                     modifier = Modifier
+ 227   7:                                         .size(34.dp)
+ 228   7:                                         .clip(CircleShape)
+ 229   7:                                         .border(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.6f), CircleShape)
+ 230   7:                                 )
+ 231   7:                                 Spacer(modifier = Modifier.width(10.dp))
+ 232   7:                                 Text(
+ 233   7:                                     "نور العترة",
+ 234   7:                                     fontWeight = FontWeight.Bold
+ 235   7:                                 )
+ 236   6:                             }
+ 237   5:                         },
+ 238   5:                         colors = TopAppBarDefaults.topAppBarColors(
+ 239   5:                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
+ 240   5:                             titleContentColor = MaterialTheme.colorScheme.onSurface
+ 241   5:                         ),
+ 242   6:                         actions = {
+ 243   6:                             // زر مواقيت الصلاة
+ 244   6:                             Surface(
+ 245   7:                                 onClick = {
+ 246   7:                                     navController.navigate("prayer_times")
+ 247   6:                                 },
+ 248   6:                                 shape = RoundedCornerShape(20.dp),
+ 249   6:                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+ 250   6:                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+ 251   6:                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+ 252   6:                                 modifier = Modifier
+ 253   6:                                     .padding(horizontal = 2.dp)
+ 254   6:                                     .height(36.dp)
+ 255   7:                             ) {
+ 256   7:                                 Row(
+ 257   7:                                     verticalAlignment = Alignment.CenterVertically,
+ 258   7:                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+ 259   8:                                 ) {
+ 260   8:                                     Icon(
+ 261   8:                                         imageVector = Icons.Filled.AccessTime,
+ 262   8:                                         contentDescription = "مواقيت الصلاة",
+ 263   8:                                         tint = MaterialTheme.colorScheme.primary,
+ 264   8:                                         modifier = Modifier.size(18.dp)
+ 265   8:                                     )
+ 266   8:                                     Spacer(modifier = Modifier.width(4.dp))
+ 267   8:                                     Text(
+ 268   8:                                         text = "المواقيت",
+ 269   8:                                         style = MaterialTheme.typography.labelMedium.copy(
+ 270   8:                                             fontWeight = FontWeight.Bold,
+ 271   8:                                             fontSize = 12.sp
+ 272   8:                                         ),
+ 273   8:                                         color = MaterialTheme.colorScheme.onPrimaryContainer
+ 274   8:                                     )
+ 275   7:                                 }
+ 276   6:                             }
+ 277   6:                             // زر اتجاه القبلة الأنيق والواضح بجانب البحث
+ 278   6:                             Surface(
+ 279   7:                                 onClick = {
+ 280   7:                                     context.startActivity(android.content.Intent(context, com.example.qibla.QiblaCompassActivity::class.java))
+ 281   6:                                 },
+ 282   6:                                 shape = RoundedCornerShape(20.dp),
+ 283   6:                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+ 284   6:                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+ 285   6:                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+ 286   6:                                 modifier = Modifier
+ 287   6:                                     .padding(horizontal = 4.dp)
+ 288   6:                                     .height(36.dp)
+ 289   7:                             ) {
+ 290   7:                                 Row(
+ 291   7:                                     verticalAlignment = Alignment.CenterVertically,
+ 292   7:                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+ 293   8:                                 ) {
+ 294   8:                                     Icon(
+ 295   8:                                         painter = painterResource(id = com.example.R.drawable.ic_worship_qibla),
+ 296   8:                                         contentDescription = "اتجاه القبلة",
+ 297   8:                                         tint = MaterialTheme.colorScheme.primary,
+ 298   8:                                         modifier = Modifier.size(18.dp)
+ 299   8:                                     )
+ 300   8:                                     Spacer(modifier = Modifier.width(5.dp))
+ 301   8:                                     Text(
+ 302   8:                                         text = "القبلة",
+ 303   8:                                         style = MaterialTheme.typography.labelMedium.copy(
+ 304   8:                                             fontWeight = FontWeight.Bold,
+ 305   8:                                             fontSize = 12.sp
+ 306   8:                                         ),
+ 307   8:                                         color = MaterialTheme.colorScheme.onPrimaryContainer
+ 308   8:                                     )
+ 309   7:                                 }
+ 310   6:                             }
+ 311   7:                             IconButton(onClick = { isSearchActive = true }) {
+ 312   7:                                 Icon(
+ 313   7:                                     imageVector = Icons.Filled.Search,
+ 314   7:                                     contentDescription = "بحث",
+ 315   7:                                     tint = MaterialTheme.colorScheme.onSurface
+ 316   7:                                 )
+ 317   6:                             }
+ 318   7:                             IconButton(onClick = { navController.navigate("favorites") }) {
+ 319   7:                                 Icon(
+ 320   7:                                     imageVector = Icons.Filled.Favorite,
+ 321   7:                                     contentDescription = "المفضلة",
+ 322   7:                                     tint = MaterialTheme.colorScheme.onSurface
+ 323   7:                                 )
+ 324   6:                             }
+ 325   5:                         },
+ 326   5:                         modifier = Modifier.clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+ 327   5:                     )
+ 328   4:                 }
+ 329   3:             }
+ 330   2:         },
+ 331   3:         bottomBar = {
+ 332   4:             if (currentRoute?.startsWith("worship_quran") != true && currentRoute != "prayer_times") {
+ 333   4:                 NavigationBar(
+ 334   4:                     containerColor = MaterialTheme.colorScheme.surface,
+ 335   4:                     tonalElevation = 0.dp,
+ 336   4:                     modifier = Modifier.clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+ 337   5:                 ) {
+ 338   5:                 NavigationBarItem(
+ 339   5:                     icon = { Icon(Icons.Filled.Home, contentDescription = "الرئيسية") },
+ 340   5:                     label = { Text("الرئيسية", fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 10.sp, overflow = TextOverflow.Ellipsis) },
+ 341   5:                     selected = currentRoute == "people" || currentRoute?.startsWith("detail") == true,
+ 342   5:                     colors = NavigationBarItemDefaults.colors(
+ 343   5:                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
+ 344   5:                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
+ 345   5:                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+ 346   5:                         unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+ 347   5:                         unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+ 348   5:                     ),
+ 349   6:                     onClick = {
+ 350   7:                         navController.navigate("people") {
+ 351   8:                             popUpTo(navController.graph.startDestinationId) {
+ 352   8:                                 inclusive = false
+ 353   7:                             }
+ 354   7:                             launchSingleTop = true
+ 355   6:                         }
+ 356   5:                     }
+ 357   5:                 )
+ 358   5:                 NavigationBarItem(
+ 359   5:                     icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "الشخصيات والمناسبات") },
+ 360   5:                     label = { Text("المناسبات", fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 10.sp, overflow = TextOverflow.Ellipsis) },
+ 361   5:                     selected = currentRoute == "figures_events",
+ 362   5:                     colors = NavigationBarItemDefaults.colors(
+ 363   5:                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
+ 364   5:                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
+ 365   5:                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+ 366   5:                         unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+ 367   5:                         unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+ 368   5:                     ),
+ 369   6:                     onClick = {
+ 370   7:                         navController.navigate("figures_events") {
+ 371   7:                             popUpTo(navController.graph.startDestinationId) { saveState = true }
+ 372   7:                             launchSingleTop = true
+ 373   7:                             restoreState = true
+ 374   6:                         }
+ 375   5:                     }
+ 376   5:                 )
+ 377   5:                 NavigationBarItem(
+ 378   5:                     icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "العبادات") },
+ 379   5:                     label = { Text("العبادات", fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 10.sp, overflow = TextOverflow.Ellipsis) },
+ 380   5:                     selected = currentRoute == "worship",
+ 381   5:                     colors = NavigationBarItemDefaults.colors(
+ 382   5:                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
+ 383   5:                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
+ 384   5:                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+ 385   5:                         unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+ 386   5:                         unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+ 387   5:                     ),
+ 388   6:                     onClick = {
+ 389   7:                         navController.navigate("worship") {
+ 390   7:                             popUpTo(navController.graph.startDestinationId) { saveState = true }
+ 391   7:                             launchSingleTop = true
+ 392   7:                             restoreState = true
+ 393   6:                         }
+ 394   5:                     }
+ 395   5:                 )
+ 396   5:                 NavigationBarItem(
+ 397   6:                     icon = {
+ 398   6:                         Icon(
+ 399   6:                             imageVector = Icons.Filled.AutoStories,
+ 400   6:                             contentDescription = "القرآن الكريم",
+ 401   6:                             modifier = Modifier.size(24.dp)
+ 402   6:                         )
+ 403   5:                     },
+ 404   6:                     label = {
+ 405   6:                         Text(
+ 406   6:                             "القرآن",
+ 407   6:                             fontWeight = FontWeight.Bold,
+ 408   6:                             maxLines = 1,
+ 409   6:                             fontSize = 10.sp,
+ 410   6:                             overflow = TextOverflow.Ellipsis
+ 411   6:                         )
+ 412   5:                     },
+ 413   5:                     selected = false,
+ 414   5:                     colors = NavigationBarItemDefaults.colors(
+ 415   5:                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
+ 416   5:                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
+ 417   5:                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+ 418   5:                         unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+ 419   5:                         unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+ 420   5:                     ),
+ 421   6:                     onClick = {
+ 422   6:                         context.startActivity(android.content.Intent(context, com.example.SawtQuranActivity::class.java))
+ 423   5:                     }
+ 424   5:                 )
+ 425   5:                 NavigationBarItem(
+ 426   5:                     icon = { Icon(Icons.Filled.Settings, contentDescription = "الإعدادات") },
+ 427   5:                     label = { Text("الإعدادات", fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 10.sp, overflow = TextOverflow.Ellipsis) },
+ 428   5:                     selected = currentRoute == "settings",
+ 429   5:                     colors = NavigationBarItemDefaults.colors(
+ 430   5:                         selectedIconColor = MaterialTheme.colorScheme.onSurface,
+ 431   5:                         selectedTextColor = MaterialTheme.colorScheme.onSurface,
+ 432   5:                         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+ 433   5:                         unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+ 434   5:                         unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+ 435   5:                     ),
+ 436   6:                     onClick = {
+ 437   7:                         navController.navigate("settings") {
+ 438   7:                             popUpTo(navController.graph.startDestinationId) { saveState = true }
+ 439   7:                             launchSingleTop = true
+ 440   7:                             restoreState = true
+ 441   6:                         }
+ 442   5:                     }
+ 443   5:                 )
+ 444   4:             }
+ 445   3:             }
+ 446   2:         }
+ 447   3:     ) { innerPadding ->
+ 448   4:         if (isSearchActive && searchQuery.isNotBlank()) {
+ 449   4:             SearchResultsScreen(
+ 450   4:                 query = searchQuery,
+ 451   4:                 navController = navController,
+ 452   5:                 onResultClick = {
+ 453   5:                     isSearchActive = false
+ 454   5:                     searchQuery = ""
+ 455   4:                 },
+ 456   4:                 modifier = Modifier.padding(innerPadding).fillMaxSize()
+ 457   4:             )
+ 458   4:         } else {
+ 459   4:             val mainTabOrder = listOf("people", "figures_events", "worship", "settings")
+ 460   5:             val swipeModifier = if (currentRoute in mainTabOrder) {
+ 461   5:                 Modifier.swipeGesture(
+ 462   5:                     key = currentRoute,
+ 463   6:                     onSwipeLeft = {
+ 464   6:                         val currentIndex = mainTabOrder.indexOf(currentRoute)
+ 465   7:                         if (currentIndex < mainTabOrder.size - 1) {
+ 466   7:                             val nextRoute = mainTabOrder[currentIndex + 1]
+ 467   8:                             navController.navigate(nextRoute) {
+ 468   9:                                 popUpTo(navController.graph.startDestinationId) {
+ 469   9:                                     inclusive = false
+ 470   8:                                 }
+ 471   8:                                 launchSingleTop = true
+ 472   7:                             }
+ 473   6:                         }
+ 474   5:                     },
+ 475   6:                     onSwipeRight = {
+ 476   6:                         val currentIndex = mainTabOrder.indexOf(currentRoute)
+ 477   7:                         if (currentIndex > 0) {
+ 478   7:                             val prevRoute = mainTabOrder[currentIndex - 1]
+ 479   8:                             navController.navigate(prevRoute) {
+ 480   9:                                 popUpTo(navController.graph.startDestinationId) {
+ 481   9:                                     inclusive = false
+ 482   8:                                 }
+ 483   8:                                 launchSingleTop = true
+ 484   7:                             }
+ 485   6:                         }
+ 486   5:                     }
+ 487   5:                 )
+ 488   5:             } else {
+ 489   5:                 Modifier.swipeGesture(
+ 490   5:                     key = currentRoute,
+ 491   5:                     requireEdge = true,
+ 492   6:                     onSwipeRight = {
+ 493   6:                         navController.popBackStack()
+ 494   5:                     },
+ 495   6:                     onSwipeLeft = {
+ 496   6:                         navController.popBackStack()
+ 497   5:                     }
+ 498   5:                 )
+ 499   4:             }
+ 500   4: 
+ 501   5:             Box(modifier = Modifier.padding(innerPadding).fillMaxSize().then(swipeModifier)) {
+ 502   5:                 NavHost(
+ 503   5:                     navController = navController,
+ 504   5:                     startDestination = "people",
+ 505   5:                     modifier = Modifier.fillMaxSize()
+ 506   6:                 ) {
+ 507   7:                 composable("people") {
+ 508   7:                     PeopleListScreen(
+ 509   7:                         navController = navController,
+ 510   7:                         onNavigateToTasbeeh = { navController.navigate("zahra_tasbeeh") },
+ 511   7:                         hijriRecord = hijriRecord
+ 512   7:                     )
+ 513   6:                 }
+ 514   7:                 composable("figures_events") {
+ 515   7:                     FiguresAndEventsScreen(
+ 516   7:                         navController = navController,
+ 517   7:                         hijriRecord = hijriRecord
+ 518   7:                     )
+ 519   6:                 }
+ 520   6:                 composable("worship") { WorshipScreen(navController) }
+ 521   7:                 composable("worship/{category}") { backStackEntry ->
+ 522   7:                     val category = backStackEntry.arguments?.getString("category")
+ 523   7:                     WorshipScreen(navController, initialCategory = category)
+ 524   6:                 }
+ 525   6:                 composable(
+ 526   6:                     route = "worship_text/{title}",
+ 527   6:                     arguments = listOf(
+ 528   7:                         navArgument("title") {
+ 529   7:                             type = NavType.StringType
+ 530   6:                         }
+ 531   6:                     )
+ 532   7:                 ) { backStackEntry ->
+ 533   7:                     val rawTitle = backStackEntry.arguments?.getString("title") ?: ""
+ 534   8:                     val title = try {
+ 535   8:                         java.net.URLDecoder.decode(rawTitle, "UTF-8")
+ 536   8:                     } catch (e: Exception) {
+ 537   8:                         rawTitle
+ 538   7:                     }
+ 539   7:                     SingleTextScreen(
+ 540   7:                         title = title,
+ 541   7:                         onBack = { navController.popBackStack() },
+ 542   8:                         onNavigateToTitle = { nextTitle ->
+ 543   8:                             navController.navigate("worship_text/$nextTitle")
+ 544   7:                         }
+ 545   7:                     )
+ 546   6:                 }
+ 547   6:                 composable("worship_quran?surah={surah}&ayah={ayah}", arguments = listOf(
+ 548   6:     navArgument("surah") { type = NavType.StringType; nullable = true },
+ 549   6:     navArgument("ayah") { type = NavType.StringType; nullable = true }
+ 550   7: )) { backStackEntry ->
+ 551   8:     androidx.compose.runtime.LaunchedEffect(Unit) {
+ 552   8:         val surah = backStackEntry.arguments?.getString("surah")?.toIntOrNull() ?: -1
+ 553   8:         val ayah = backStackEntry.arguments?.getString("ayah")?.toIntOrNull() ?: -1
+ 554   9:         val intent = android.content.Intent(context, com.example.SawtQuranActivity::class.java).apply {
+ 555   9:             putExtra("open_surah_id", surah)
+ 556   9:             putExtra("open_ayah_number", ayah)
+ 557   8:         }
+ 558   8:         context.startActivity(intent)
+ 559   8:         navController.popBackStack()
+ 560   7:     }
+ 561   6: }
+ 562   7:                 composable("detail/{id}") { backStackEntry ->
+ 563   7:                     val id = backStackEntry.arguments?.getString("id")?.toIntOrNull()
+ 564   7:                     val person = AhlAlBaytRepository.people.find { it.id == id } ?: AhlAlBaytRepository.famousFigures.find { it.id == id }
+ 565   8:                     if (person != null) {
+ 566   8:                         DetailScreen(person, onBack = { navController.popBackStack() })
+ 567   7:                     }
+ 568   6:                 }
+ 569   6:                 composable("zahra_tasbeeh") { com.example.ui.TasbeehScreen(onBack = { navController.popBackStack() }) }
+ 570   7:                 composable("prayer_times") {
+ 571   7:                     com.example.ui.screens.prayer.PrayerTimesMainScreen(
+ 572   7:                         onBack = { navController.popBackStack() }
+ 573   7:                     )
+ 574   6:                 }
+ 575   6:                 composable("settings") { SettingsScreen() }
+ 576   6:                 composable("favorites") { FavoritesScreen(navController) }
+ 577   5:             }
+ 578   4:             }
+ 579   3:         }
+ 580   2:     }
+ 581   1:     }
+ 582   0: }
+ 583   0: 
+ 584   1: fun String.normalizeArabic(): String {
+ 585   1:     return this
+ 586   1:         // Remove Arabic diacritics / Harakat
+ 587   1:         .replace("[\u064b\u064c\u064d\u064e\u064f\u0650\u0651\u0652\u0640]".toRegex(), "")
+ 588   1:         // Normalize alef variants
+ 589   1:         .replace("[\u0622\u0623\u0625\u0671]".toRegex(), "\u0627") // آ, أ, إ, ٱ -> ا
+ 590   1:         // Normalize taa marbuta
+ 591   1:         .replace("\u0629".toRegex(), "\u0647") // ة -> ه
+ 592   1:         // Normalize alef maksura and yaa
+ 593   1:         .replace("[\u0649\u064a]".toRegex(), "ي") // ى, ي -> ي
+ 594   1:         .trim()
+ 595   0: }
+ 596   0: 
+ 597   0: data class WorshipSearchResult(
+ 598   0:     val title: String,
+ 599   0:     val categoryName: String
+ 600   0: )
+ 601   0: 
+ 602   0: @Composable
+ 603   1: fun WorshipSearchCard(title: String, categoryName: String, onClick: () -> Unit) {
+ 604   1:     Card(
+ 605   1:         modifier = Modifier
+ 606   1:             .fillMaxWidth()
+ 607   1:             .padding(vertical = 6.dp)
+ 608   1:             .clickable { onClick() },
+ 609   1:         shape = RoundedCornerShape(16.dp),
+ 610   1:         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+ 611   2:     ) {
+ 612   2:         Row(
+ 613   2:             modifier = Modifier
+ 614   2:                 .padding(16.dp)
+ 615   2:                 .fillMaxWidth(),
+ 616   2:             verticalAlignment = Alignment.CenterVertically
+ 617   3:         ) {
+ 618   4:             if (categoryName == "أحكام الصوم") {
+ 619   4:                 Box(
+ 620   4:                     modifier = Modifier
+ 621   4:                         .size(32.dp)
+ 622   4:                         .clip(CircleShape)
+ 623   4:                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), CircleShape)
+ 624   4:                         .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape),
+ 625   4:                     contentAlignment = Alignment.Center
+ 626   5:                 ) {
+ 627   5:                     androidx.compose.foundation.Image(
+ 628   5:                         painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_ahkam_sawm_3d),
+ 629   5:                         contentDescription = "أحكام الصوم",
+ 630   5:                         modifier = Modifier.fillMaxSize(),
+ 631   5:                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
+ 632   5:                     )
+ 633   4:                 }
+ 634   4:             } else if (categoryName == "أدعية موجزة" || categoryName == "الادعية المختارة") {
+ 635   4:                 Box(
+ 636   4:                     modifier = Modifier
+ 637   4:                         .size(32.dp)
+ 638   4:                         .clip(CircleShape)
+ 639   4:                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), CircleShape)
+ 640   4:                         .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape),
+ 641   4:                     contentAlignment = Alignment.Center
+ 642   5:                 ) {
+ 643   5:                     androidx.compose.foundation.Image(
+ 644   5:                         painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_selected_dua_3d),
+ 645   5:                         contentDescription = "الادعية المختارة",
+ 646   5:                         modifier = Modifier.fillMaxSize(),
+ 647   5:                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
+ 648   5:                     )
+ 649   4:                 }
+ 650   4:             } else if (categoryName == "عداد الركع") {
+ 651   4:                 Box(
+ 652   4:                     modifier = Modifier
+ 653   4:                         .size(32.dp)
+ 654   4:                         .clip(CircleShape)
+ 655   4:                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), CircleShape)
+ 656   4:                         .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape),
+ 657   4:                     contentAlignment = Alignment.Center
+ 658   5:                 ) {
+ 659   5:                     androidx.compose.foundation.Image(
+ 660   5:                         painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_rakat_counter_3d),
+ 661   5:                         contentDescription = "عداد الركع",
+ 662   5:                         modifier = Modifier.fillMaxSize(),
+ 663   5:                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
+ 664   5:                     )
+ 665   4:                 }
+ 666   4:             } else {
+ 667   4:                 Icon(
+ 668   4:                     imageVector = Icons.AutoMirrored.Filled.MenuBook,
+ 669   4:                     contentDescription = null,
+ 670   4:                     tint = MaterialTheme.colorScheme.primary,
+ 671   4:                     modifier = Modifier.size(24.dp)
+ 672   4:                 )
+ 673   3:             }
+ 674   3:             Spacer(modifier = Modifier.width(12.dp))
+ 675   4:             Column(modifier = Modifier.weight(1f)) {
+ 676   4:                 Text(
+ 677   4:                     text = title,
+ 678   4:                     fontWeight = FontWeight.Bold,
+ 679   4:                     style = MaterialTheme.typography.titleMedium,
+ 680   4:                     color = MaterialTheme.colorScheme.onSurface
+ 681   4:                 )
+ 682   4:                 Text(
+ 683   4:                     text = categoryName,
+ 684   4:                     style = MaterialTheme.typography.bodyMedium,
+ 685   4:                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+ 686   4:                 )
+ 687   3:             }
+ 688   3:             Spacer(modifier = Modifier.width(8.dp))
+ 689   3:             Icon(
+ 690   3:                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+ 691   3:                 contentDescription = "فتح",
+ 692   3:                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+ 693   3:                 modifier = Modifier.size(20.dp)
+ 694   3:             )
+ 695   2:         }
+ 696   1:     }
+ 697   0: }
+ 698   0: 
+ 699   0: @Composable
+ 700   0: fun SearchResultsScreen(
+ 701   0:     query: String,
+ 702   0:     navController: NavHostController,
+ 703   0:     onResultClick: () -> Unit,
+ 704   0:     modifier: Modifier = Modifier
+ 705   1: ) {
+ 706   1:     val context = androidx.compose.ui.platform.LocalContext.current
+ 707   1:     val quranRepo = remember { (context.applicationContext as com.example.MainApplication).repository }
+ 708   1:     var quranResults by remember { mutableStateOf<List<com.example.data.local.AyahEntity>>(emptyList()) }
+ 709   1:     var surahNames by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+ 710   1: 
+ 711   2:     androidx.compose.runtime.LaunchedEffect(query) {
+ 712   3:         if (query.isNotBlank()) {
+ 713   3:             val results = quranRepo.searchAyahs(query)
+ 714   3:             quranResults = results
+ 715   3:             val names = mutableMapOf<Int, String>()
+ 716   4:             results.forEach { ayah ->
+ 717   5:                 if (!names.containsKey(ayah.surahId)) {
+ 718   5:                     names[ayah.surahId] = quranRepo.getSurahNameById(ayah.surahId) ?: ""
+ 719   4:                 }
+ 720   3:             }
+ 721   3:             surahNames = names
+ 722   3:         } else {
+ 723   3:             quranResults = emptyList()
+ 724   3:             surahNames = emptyMap()
+ 725   2:         }
+ 726   1:     }
+ 727   1: 
+ 728   1:     val normalizedQuery = remember(query) { query.normalizeArabic() }
+ 729   1: 
+ 730   2:     val people = remember(normalizedQuery) {
+ 731   3:         AhlAlBaytRepository.people.filter {
+ 732   3:             it.name.normalizeArabic().contains(normalizedQuery, ignoreCase = true) ||
+ 733   3:             it.title.normalizeArabic().contains(normalizedQuery, ignoreCase = true)
+ 734   2:         }
+ 735   1:     }
+ 736   2:     val figures = remember(normalizedQuery) {
+ 737   3:         AhlAlBaytRepository.famousFigures.filter {
+ 738   3:             it.name.normalizeArabic().contains(normalizedQuery, ignoreCase = true) ||
+ 739   3:             it.title.normalizeArabic().contains(normalizedQuery, ignoreCase = true)
+ 740   2:         }
+ 741   1:     }
+ 742   2:     val events = remember(normalizedQuery) {
+ 743   3:         AhlAlBaytRepository.events.filter {
+ 744   3:             it.name.normalizeArabic().contains(normalizedQuery, ignoreCase = true)
+ 745   2:         }
+ 746   1:     }
+ 747   2:     val worshipResults = remember(normalizedQuery) {
+ 748   2:         val allWorships = listOf(
+ 749   2:             com.example.data.WorshipData.dailyPrayers.values.map { WorshipSearchResult(it.first, "أدعية يومية") },
+ 750   2:             com.example.data.WorshipData.taqeebat.map { WorshipSearchResult(it.first, "تعقيبات الصلاة") },
+ 751   2:             com.example.data.WorshipData.munajat.map { WorshipSearchResult(it.first, "مناجاة") },
+ 752   2:             com.example.data.WorshipData.tasbeehat.map { WorshipSearchResult(it.first, "تسبيحات") },
+ 753   2:             com.example.data.WorshipData.azkarList.map { WorshipSearchResult(it.first, "أذكار") },
+ 754   2:             com.example.data.WorshipData.ziyarats.map { WorshipSearchResult(it.first, "الزيارات") },
+ 755   2:             com.example.data.WorshipData.ziyaratsOfDays.map { WorshipSearchResult(it.first, "زيارات الأيام") },
+ 756   2:             com.example.data.WorshipData.monthlyDeeds.values.flatten().map { WorshipSearchResult(it.first, "أعمال الشهور") },
+ 757   2:             com.example.data.WorshipData.sahifaSajjadiya.map { WorshipSearchResult(it.first, "الصحيفة السجادية") },
+ 758   2:             com.example.data.WorshipData.generalPrayers.map { WorshipSearchResult(it.first, "أدعية عامة") },
+ 759   2:             com.example.data.WorshipData.salawatsOnHujaj.map { WorshipSearchResult(it.first, "صلوات") },
+ 760   2:             com.example.data.WorshipData.ahlAlBaytPrayers.map { WorshipSearchResult(it.first, "أدعية أهل البيت") },
+ 761   2:             com.example.data.WorshipData.concisePrayers.map { WorshipSearchResult(it.first, "أدعية موجزة") },
+ 762   2:             com.example.data.WorshipData.obligatoryAndRecommendedPrayers.map { WorshipSearchResult(it.first, "الصلاة") },
+ 763   2:             com.example.data.WorshipData.fastingRules.map { WorshipSearchResult(it.first, "أحكام الصوم") },
+ 764   2:             com.example.data.WorshipData.hajjRules.map { WorshipSearchResult(it.first, "أحكام الحجّ") },
+ 765   2:             listOf(
+ 766   2:                 WorshipSearchResult("أحكام الصوم والمسائل الفقهية", "أحكام الصوم"),
+ 767   2:                 WorshipSearchResult("عداد الركع والسجدات", "عداد الركع")
+ 768   2:             )
+ 769   2:         ).flatten()
+ 770   2: 
+ 771   3:         allWorships.filter {
+ 772   3:             it.title.normalizeArabic().contains(normalizedQuery, ignoreCase = true)
+ 773   2:         }
+ 774   1:     }
+ 775   1: 
+ 776   2:     LazyColumn(modifier = modifier.background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(16.dp)) {
+ 777   3:         if (people.isNotEmpty() || figures.isNotEmpty()) {
+ 778   4:             item {
+ 779   4:                 Text(
+ 780   4:                     "الشخصيات",
+ 781   4:                     style = MaterialTheme.typography.titleLarge,
+ 782   4:                     fontWeight = FontWeight.Bold,
+ 783   4:                     color = if (MaterialTheme.colorScheme.onBackground == androidx.compose.ui.graphics.Color.White) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary,
+ 784   4:                     modifier = Modifier.padding(vertical = 8.dp)
+ 785   4:                 )
+ 786   3:             }
+ 787   4:             items(people + figures) { person ->
+ 788   5:                 PersonCard(person, onClick = {
+ 789   5:                     onResultClick()
+ 790   5:                     navController.navigate("detail/${person.id}")
+ 791   4:                 })
+ 792   3:             }
+ 793   2:         }
+ 794   3:         if (worshipResults.isNotEmpty()) {
+ 795   4:             item {
+ 796   4:                 Text(
+ 797   4:                     "العبادات والأدعية",
+ 798   4:                     style = MaterialTheme.typography.titleLarge,
+ 799   4:                     fontWeight = FontWeight.Bold,
+ 800   4:                     color = if (MaterialTheme.colorScheme.onBackground == androidx.compose.ui.graphics.Color.White) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary,
+ 801   4:                     modifier = Modifier.padding(vertical = 8.dp)
+ 802   4:                 )
+ 803   3:             }
+ 804   4:             items(worshipResults) { result ->
+ 805   4:                 WorshipSearchCard(
+ 806   4:                     title = result.title,
+ 807   4:                     categoryName = result.categoryName,
+ 808   5:                     onClick = {
+ 809   5:                         onResultClick()
+ 810   6:                         if (result.categoryName == "عداد الركع") {
+ 811   6:                             navController.navigate("worship/عداد الركع")
+ 812   6:                         } else if (result.categoryName == "أحكام الصوم" && result.title == "أحكام الصوم والمسائل الفقهية") {
+ 813   6:                             navController.navigate("worship/أحكام الصوم")
+ 814   6:                         } else {
+ 815   6:                             navController.navigate("worship_text/${result.title}")
+ 816   5:                         }
+ 817   4:                     }
+ 818   4:                 )
+ 819   3:             }
+ 820   2:         }
+ 821   3:         if (events.isNotEmpty()) {
+ 822   4:             item {
+ 823   4:                 Text(
+ 824   4:                     "المناسبات",
+ 825   4:                     style = MaterialTheme.typography.titleLarge,
+ 826   4:                     fontWeight = FontWeight.Bold,
+ 827   4:                     color = if (MaterialTheme.colorScheme.onBackground == androidx.compose.ui.graphics.Color.White) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary,
+ 828   4:                     modifier = Modifier.padding(vertical = 8.dp)
+ 829   4:                 )
+ 830   3:             }
+ 831   4:             items(events) { event ->
+ 832   4:                 EventSearchCard(event)
+ 833   3:             }
+ 834   2:         }
+ 835   3:         if (quranResults.isNotEmpty()) {
+ 836   4:             item {
+ 837   4:                 Text(
+ 838   4:                     "القرآن الكريم",
+ 839   4:                     style = MaterialTheme.typography.titleLarge,
+ 840   4:                     fontWeight = FontWeight.Bold,
+ 841   4:                     color = if (MaterialTheme.colorScheme.onBackground == androidx.compose.ui.graphics.Color.White) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary,
+ 842   4:                     modifier = Modifier.padding(vertical = 8.dp)
+ 843   4:                 )
+ 844   3:             }
+ 845   4:             items(quranResults) { ayah ->
+ 846   4:                 QuranSearchCard(
+ 847   4:                     ayah = ayah,
+ 848   4:                     surahName = surahNames[ayah.surahId] ?: "",
+ 849   5:                     onClick = {
+ 850   5:                         onResultClick()
+ 851   6:                         val intent = android.content.Intent(context, com.example.SawtQuranActivity::class.java).apply {
+ 852   6:                             putExtra("open_surah_id", ayah.surahId)
+ 853   6:                             putExtra("open_ayah_number", ayah.ayahNumber)
+ 854   5:                         }
+ 855   5:                         context.startActivity(intent)
+ 856   4:                     }
+ 857   4:                 )
+ 858   3:             }
+ 859   2:         }
+ 860   3:         if (people.isEmpty() && figures.isEmpty() && events.isEmpty() && worshipResults.isEmpty() && quranResults.isEmpty()) {
+ 861   4:             item {
+ 862   5:                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+ 863   5:                     Text("لا توجد نتائج بحث", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+ 864   4:                 }
+ 865   3:             }
+ 866   2:         }
+ 867   1:     }
+ 868   0: }
+ 869   0: 
+ 870   0: @Composable
+ 871   1: fun QuranSearchCard(ayah: com.example.data.local.AyahEntity, surahName: String, onClick: () -> Unit) {
+ 872   1:     Card(
+ 873   1:         modifier = Modifier
+ 874   1:             .fillMaxWidth()
+ 875   1:             .padding(vertical = 4.dp)
+ 876   1:             .clickable(onClick = onClick),
+ 877   1:         shape = RoundedCornerShape(12.dp)
+ 878   2:     ) {
+ 879   3:         Column(modifier = Modifier.padding(16.dp)) {
+ 880   3:             Text(
+ 881   3:                 text = "سورة $surahName - الآية ${ayah.ayahNumber}",
+ 882   3:                 style = MaterialTheme.typography.labelSmall,
+ 883   3:                 color = MaterialTheme.colorScheme.primary
+ 884   3:             )
+ 885   3:             Spacer(modifier = Modifier.height(4.dp))
+ 886   3:             Text(
+ 887   3:                 text = ayah.textUthmani,
+ 888   3:                 style = MaterialTheme.typography.bodyLarge,
+ 889   3:                 color = MaterialTheme.colorScheme.onSurface,
+ 890   3:                 maxLines = 2,
+ 891   3:                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+ 892   3:                 fontFamily = com.example.ui.screens.QuranFontFamily
+ 893   3:             )
+ 894   2:         }
+ 895   1:     }
+ 896   0: }
+ 897   0: 
+ 898   0: @Composable
+ 899   1: fun EventSearchCard(event: com.example.data.HijriEvent) {
+ 900   1:     Card(
+ 901   1:         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+ 902   1:         shape = RoundedCornerShape(16.dp),
+ 903   1:         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+ 904   2:     ) {
+ 905   2:         Row(
+ 906   2:             modifier = Modifier.padding(16.dp).fillMaxWidth(),
+ 907   2:             verticalAlignment = Alignment.CenterVertically
+ 908   3:         ) {
+ 909   3:             Box(
+ 910   3:                 modifier = Modifier
+ 911   3:                     .size(12.dp)
+ 912   3:                     .background(
+ 913   3:                         color = if (event.isMartyrdom) androidx.compose.ui.graphics.Color(0xFFEF5350) else androidx.compose.ui.graphics.Color(0xFF66BB6A),
+ 914   3:                         shape = CircleShape
+ 915   3:                     )
+ 916   3:             )
+ 917   3:             Spacer(modifier = Modifier.width(12.dp))
+ 918   4:             Column {
+ 919   4:                 Text(event.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+ 920   4:                 Text("${event.day} ${com.example.data.getHijriMonthName(event.month)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+ 921   3:             }
+ 922   2:         }
+ 923   1:     }
+ 924   0: }
+ 925   0: 
+ 926   0: private data class HourlySuggestedAyah(
+ 927   0:     val surahId: Int,
+ 928   0:     val surahName: String,
+ 929   0:     val ayahNumber: Int,
+ 930   0:     val text: String
+ 931   0: )
+ 932   0: 
+ 933   0: private val HOURLY_SURAHS_AYAH_LIST = listOf(
+ 934   0:     HourlySuggestedAyah(2, "البقرة", 255, "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ"),
+ 935   0:     HourlySuggestedAyah(13, "الرعد", 28, "الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ ۗ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ"),
+ 936   0:     HourlySuggestedAyah(33, "الأحزاب", 56, "إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ ۚ يَا أَيُّهَا الَّذِينَ آمَنُوا صَلُّوا عَلَيْهِ وَسَلِّمُوا تَسْلِيمًا"),
+ 937   0:     HourlySuggestedAyah(2, "البقرة", 186, "وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّى قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ"),
+ 938   0:     HourlySuggestedAyah(33, "الأحزاب", 33, "إِنَّمَا يُرِيدُ اللَّهُ لِيُذْهَبَ عَنكُمُ الرِّجْسَ أَهْلَ الْبَيْتِ وَيُطَهِّرَكُمْ تَطْهِيرًا"),
+ 939   0:     HourlySuggestedAyah(20, "طه", 114, "فَتَعَالَى اللَّهُ الْمَلِكُ الْحَقُّ ۗ وَلَا تَعْجَلْ بِالْقُرْآنِ مِن قَبْلِ أَن يُقْضَىٰ إِلَيْكَ وَحْيُهُ ۖ وَقُل رَّبِّ زِدْنِي عِلْمًا"),
+ 940   0:     HourlySuggestedAyah(94, "الشرح", 6, "إِنَّ مَعَ الْعُسْرِ يُسْرًا"),
+ 941   0:     HourlySuggestedAyah(2, "البقرة", 152, "فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ"),
+ 942   0:     HourlySuggestedAyah(42, "الشورى", 23, "قُل لَّا أَسْأَلُكُمْ عَلَيْهِ أَجْرًا إِلَّا الْمَوَدَّةَ فِي الْقُرْبَىٰ"),
+ 943   0:     HourlySuggestedAyah(65, "الطلاق", 2, "وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا * وَيَرْزُقُهُ مِنْ حَيْثُ لَا يَحْتَسِبُ"),
+ 944   0:     HourlySuggestedAyah(93, "الضحى", 5, "وَلَسَوْفَ يُعْطِيكَ رَبُّكَ فَتَرْضَىٰ"),
+ 945   0:     HourlySuggestedAyah(2, "البقرة", 153, "يَا أَيُّهَا الَّذِينَ آمَنُوا اسْتَعِينُوا بِالصَّبْرِ وَالصَّلَاةِ ۚ إِنَّ اللَّهَ مَعَ الصَّابِرِينَ"),
+ 946   0:     HourlySuggestedAyah(39, "الزمر", 36, "أَلَيْسَ اللَّهُ بِكَافٍ عَبْدَهُ"),
+ 947   0:     HourlySuggestedAyah(52, "الطور", 48, "وَاصْبِرْ لِحُكْمِ رَبِّكَ فَإِنَّكَ بِأَعْيُنِنَا"),
+ 948   0:     HourlySuggestedAyah(2, "البقرة", 137, "فَسَيَكْفِيكَهُمُ اللَّهُ ۚ وَهُوَ السَّمِيعُ الْعَلِيمُ"),
+ 949   0:     HourlySuggestedAyah(9, "التوبة", 105, "وَقُلِ اعْمَلُوا فَسَيَرَى اللَّهُ عَمَلَكُمْ وَرَسُولُهُ وَالْمُؤْمِنُونَ"),
+ 950   0:     HourlySuggestedAyah(28, "القصص", 24, "رَبِّ إِنِّي لِمَا أَنزَلْتَ إِلَيَّ مِنْ خَيْرٍ فَقِيرٌ"),
+ 951   0:     HourlySuggestedAyah(21, "الأنبياء", 87, "لَّا إِلَٰهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ"),
+ 952   0:     HourlySuggestedAyah(3, "آل عمران", 159, "إِنَّ اللَّهَ يُحِبُّ الْمُتَوَكِّلِينَ"),
+ 953   0:     HourlySuggestedAyah(25, "الفرقان", 58, "وَتَوَكَّلْ عَلَى الْحَيِّ الَّذِي لَا يَمُوتُ"),
+ 954   0:     HourlySuggestedAyah(11, "هود", 114, "إِنَّ الْحَسَنَاتِ يُذْهِبْنَ السَّيِّئَاتِ ۚ ذَٰلِكَ ذِكْرَىٰ لِلذَّاكِرِينَ"),
+ 955   0:     HourlySuggestedAyah(57, "الحديد", 4, "وَهُوَ مَعَكُمْ أَيْنَ مَا كُنتُمْ ۚ وَاللَّهُ بِمَا تَعْمَلُونَ بَصِيرٌ"),
+ 956   0:     HourlySuggestedAyah(11, "هود", 88, "وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ ۚ عَلَيْهِ تَوَكَّلْتُ وَإِذَا أُنِيبُ"),
+ 957   0:     HourlySuggestedAyah(40, "غافر", 60, "وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ")
+ 958   0: )
+ 959   0: 
+ 960   0: @SuppressLint("MissingPermission")
+ 961   0: @Composable
+ 962   1: fun PeopleListScreen(navController: NavHostController, onNavigateToTasbeeh: () -> Unit = {}, hijriRecord: com.example.data.HijriDateRecord?) {
+ 963   1:     val adjustedHijriDate = com.example.data.HijriSyncManager.getCalculatedHijriDate(hijriRecord)
+ 964   1:     val currentYear = adjustedHijriDate.get(java.time.temporal.ChronoField.YEAR_OF_ERA)
+ 965   1:     val monthNumber = adjustedHijriDate.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+ 966   1:     val monthName = com.example.data.getHijriMonthName(monthNumber)
+ 967   1:     val weekdayAr = getArabicWeekdayName(java.time.LocalDate.now().dayOfWeek)
+ 968   1:     val currentDay = adjustedHijriDate.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+ 969   1:     val hijriString = "$weekdayAr، $currentDay $monthName $currentYear هـ"
+ 970   1: 
+ 971   1:     val localDate = remember { java.time.LocalDate.now() }
+ 972   1:     val gregDateStr = remember { "${localDate.dayOfMonth} ${getLevantineMonthName(localDate.monthValue)} ${localDate.year}" }
+ 973   1:     val gregorianString = "$weekdayAr، $gregDateStr م"
+ 974   1: 
+ 975   1:     val timingsViewModel: TimingsViewModel = viewModel()
+ 976   1:     val aladhanData by timingsViewModel.aladhanData.collectAsState()
+ 977   1: 
+ 978   1:     val prayerViewModel: PrayerTimesViewModel = viewModel()
+ 979   1:     val prayerData by prayerViewModel.prayerTimesData.collectAsState()
+ 980   1:     val nextPrayer by prayerViewModel.nextPrayer.collectAsState()
+ 981   1:     val liveTime by prayerViewModel.currentLiveTime.collectAsState()
+ 982   1:     val appLanguage by prayerViewModel.appLanguage.collectAsState()
+ 983   1:     val selectedCity by prayerViewModel.selectedCity.collectAsState()
+ 984   1: 
+ 985   1:     val context = androidx.compose.ui.platform.LocalContext.current
+ 986   1:     val sharedPref = remember { context.getSharedPreferences("AhlAlBaytPrefs", android.content.Context.MODE_PRIVATE) }
+ 987   1: 
+ 988   1:     val homeCoroutineScope = rememberCoroutineScope()
+ 989   2:     val quranRepo = remember {
+ 990   2:         (context.applicationContext as? com.example.MainApplication)?.repository
+ 991   1:     }
+ 992   1:     var qabasSurahId by remember { mutableIntStateOf(1) }
+ 993   1:     var qabasAyahNumber by remember { mutableIntStateOf(1) }
+ 994   1:     var qabasSurahName by remember { mutableStateOf("الفاتحة") }
+ 995   1:     var qabasAyahText by remember { mutableStateOf("بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ") }
+ 996   1:     var isQabasAutoAudioEnabled by remember { mutableStateOf(false) }
+ 997   1: 
+ 998   2:     val audioPlayerManager = remember {
+ 999   2:         com.example.audio.AyahAudioState.getOrCreate(context)
+1000   1:     }
+1001   1:     val isAudioPlaying by audioPlayerManager.isPlaying.collectAsState()
+1002   1:     val currentlyPlayingAyah by audioPlayerManager.currentPlayingAyah.collectAsState()
+1003   1:     val currentReciter by audioPlayerManager.currentReciter.collectAsState()
+1004   1: 
+1005   1:     var showPosterDialog by remember { mutableStateOf(false) }
+1006   1:     var showReciterDialog by remember { mutableStateOf(false) }
+1007   1: 
+1008   1:     val isQabasAyahPlaying = isAudioPlaying &&
+1009   1:         currentlyPlayingAyah?.first == qabasSurahId &&
+1010   1:         currentlyPlayingAyah?.second == qabasAyahNumber
+1011   1: 
+1012   2:     val isAutoChangePaused by remember {
+1013   3:         derivedStateOf {
+1014   3:             isAudioPlaying || showReciterDialog || showPosterDialog
+1015   2:         }
+1016   1:     }
+1017   1: 
+1018   2:     DisposableEffect(Unit) {
+1019   3:         onDispose {
+1020   4:             if (currentlyPlayingAyah?.first == qabasSurahId && currentlyPlayingAyah?.second == qabasAyahNumber) {
+1021   4:                 audioPlayerManager.stop()
+1022   3:             }
+1023   2:         }
+1024   1:     }
+1025   1: 
+1026   2:     LaunchedEffect(currentlyPlayingAyah) {
+1027   3:         if (isAudioPlaying && currentlyPlayingAyah != null) {
+1028   3:             val (sId, aNum) = currentlyPlayingAyah!!
+1029   4:             if (sId != qabasSurahId || aNum != qabasAyahNumber) {
+1030   5:                 try {
+1031   6:                     val ayah = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1032   6:                         quranRepo?.getAyahByNumber(sId, aNum)
+1033   5:                     }
+1034   6:                     if (ayah != null) {
+1035   7:                         val sName = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1036   7:                             quranRepo?.getSurahNameById(ayah.surahId) ?: ""
+1037   6:                         }
+1038   6:                         qabasSurahId = ayah.surahId
+1039   6:                         qabasAyahNumber = ayah.ayahNumber
+1040   6:                         qabasSurahName = if (!sName.isNullOrBlank()) sName else "سورة رقم ${ayah.surahId}"
+1041   6:                         qabasAyahText = ayah.textUthmani
+1042   5:                     }
+1043   5:                 } catch (e: Exception) {
+1044   5:                     // Ignore
+1045   4:                 }
+1046   3:             }
+1047   2:         }
+1048   1:     }
+1049   1: 
+1050   2:     val loadAyah: suspend () -> Unit = remember(quranRepo) {
+1051   3:         {
+1052   4:             try {
+1053   5:                 val ayah = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1054   5:                     quranRepo?.getRandomAyah()
+1055   4:                 }
+1056   5:                 if (ayah != null) {
+1057   6:                     val sName = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1058   6:                         quranRepo?.getSurahNameById(ayah.surahId) ?: ""
+1059   5:                     }
+1060   5:                     qabasSurahId = ayah.surahId
+1061   5:                     qabasAyahNumber = ayah.ayahNumber
+1062   5:                     qabasSurahName = if (!sName.isNullOrBlank()) sName else "سورة رقم ${ayah.surahId}"
+1063   5:                     qabasAyahText = ayah.textUthmani
+1064   5:                 } else {
+1065   5:                     val fallback = HOURLY_SURAHS_AYAH_LIST.random()
+1066   5:                     qabasSurahId = fallback.surahId
+1067   5:                     qabasAyahNumber = fallback.ayahNumber
+1068   5:                     qabasSurahName = fallback.surahName
+1069   5:                     qabasAyahText = fallback.text
+1070   4:                 }
+1071   4:             } catch (e: Exception) {
+1072   4:                 val fallback = HOURLY_SURAHS_AYAH_LIST.random()
+1073   4:                 qabasSurahId = fallback.surahId
+1074   4:                 qabasAyahNumber = fallback.ayahNumber
+1075   4:                 qabasSurahName = fallback.surahName
+1076   4:                 qabasAyahText = fallback.text
+1077   3:             }
+1078   2:         }
+1079   1:     }
+1080   1: 
+1081   2:     LaunchedEffect(Unit) {
+1082   2:         loadAyah()
+1083   3:         while (true) {
+1084   3:             val delayTime = if (qabasAyahText.length > 100) 12000L else 8000L
+1085   3:             kotlinx.coroutines.delay(delayTime)
+1086   3: 
+1087   3:             // Wait if paused or if auto audio is active (auto audio handles its own loading)
+1088   4:             while (isAutoChangePaused || isQabasAutoAudioEnabled) {
+1089   4:                 kotlinx.coroutines.delay(1000L)
+1090   3:             }
+1091   3: 
+1092   3:             // Re-check after the wait loop
+1093   4:             if (!isAutoChangePaused && !isQabasAutoAudioEnabled) {
+1094   4:                 loadAyah()
+1095   3:             }
+1096   2:         }
+1097   1:     }
+1098   1: 
+1099   1:     var audioFinishedTrigger by remember { mutableIntStateOf(0) }
+1100   1: 
+1101   2:     DisposableEffect(audioPlayerManager) {
+1102   3:         audioPlayerManager.onSingleAyahComplete = {
+1103   3:             audioFinishedTrigger++
+1104   2:         }
+1105   3:         onDispose {
+1106   3:             audioPlayerManager.onSingleAyahComplete = null
+1107   2:         }
+1108   1:     }
+1109   1: 
+1110   2:     LaunchedEffect(audioFinishedTrigger, isQabasAutoAudioEnabled, showReciterDialog, showPosterDialog) {
+1111   3:         if (isQabasAutoAudioEnabled && !audioPlayerManager.isPlaying.value && !showReciterDialog && !showPosterDialog) {
+1112   3:             // Wait a small moment to ensure smooth transition after audio finishes
+1113   3:             kotlinx.coroutines.delay(1000L)
+1114   3: 
+1115   3:             // Check again in case it was disabled during the delay or started manually
+1116   4:             if (isQabasAutoAudioEnabled && !audioPlayerManager.isPlaying.value) {
+1117   5:                 try {
+1118   5:                     loadAyah()
+1119   6:                     if (isQabasAutoAudioEnabled) {
+1120   6:                         audioPlayerManager.playAyah(qabasSurahId, qabasAyahNumber, continuous = false)
+1121   5:                     }
+1122   5:                 } catch (e: Exception) {
+1123   5:                     // ignore
+1124   4:                 }
+1125   3:             }
+1126   2:         }
+1127   1:     }
+1128   1: 
+1129   2:     LaunchedEffect(qabasSurahId) {
+1130   3:         if (qabasSurahId in 1..114) {
+1131   4:             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1132   5:                 try {
+1133   5:                     quranRepo?.preloadSurah(qabasSurahId)
+1134   4:                 } catch (_: Exception) {}
+1135   3:             }
+1136   2:         }
+1137   1:     }
+1138   1: 
+1139   2:     var showDailyDeeds by remember {
+1140   2:         mutableStateOf(sharedPref.getBoolean("show_daily_deeds", true))
+1141   1:     }
+1142   2:     var showSuggestions by remember {
+1143   2:         mutableStateOf(sharedPref.getBoolean("show_suggestions", true))
+1144   1:     }
+1145   2:     var showEvents by remember {
+1146   2:         mutableStateOf(sharedPref.getBoolean("show_events", true))
+1147   1:     }
+1148   2:     var showQabas by remember {
+1149   2:         mutableStateOf(sharedPref.getBoolean("show_qabas", true))
+1150   1:     }
+1151   1: 
+1152   2:     val listener = remember {
+1153   3:         android.content.SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
+1154   4:             if (key == "show_daily_deeds") {
+1155   4:                 showDailyDeeds = sp.getBoolean("show_daily_deeds", true)
+1156   3:             }
+1157   4:             if (key == "show_suggestions") {
+1158   4:                 showSuggestions = sp.getBoolean("show_suggestions", true)
+1159   3:             }
+1160   4:             if (key == "show_events") {
+1161   4:                 showEvents = sp.getBoolean("show_events", true)
+1162   3:             }
+1163   4:             if (key == "show_qabas") {
+1164   4:                 showQabas = sp.getBoolean("show_qabas", true)
+1165   3:             }
+1166   2:         }
+1167   1:     }
+1168   1: 
+1169   2:     androidx.compose.runtime.DisposableEffect(sharedPref) {
+1170   2:         sharedPref.registerOnSharedPreferenceChangeListener(listener)
+1171   3:         onDispose {
+1172   3:             sharedPref.unregisterOnSharedPreferenceChangeListener(listener)
+1173   2:         }
+1174   1:     }
+1175   1: 
+1176   1:     val themeOnSurface = MaterialTheme.colorScheme.onSurface
+1177   1:     val themePrimaryContainer = MaterialTheme.colorScheme.primaryContainer
+1178   1:     val themeOnPrimaryContainer = MaterialTheme.colorScheme.onPrimaryContainer
+1179   1:     val themeSecondaryContainer = MaterialTheme.colorScheme.secondaryContainer
+1180   1:     val themeOnSecondaryContainer = MaterialTheme.colorScheme.onSecondaryContainer
+1181   1:     val themeSurface = MaterialTheme.colorScheme.surface
+1182   1:     val themeOnSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+1183   1:     val themeOutline = MaterialTheme.colorScheme.outline
+1184   1:     val themeTertiary = MaterialTheme.colorScheme.tertiary
+1185   1: 
+1186   2:     IslamicBackgroundBox(modifier = Modifier.fillMaxSize()) {
+1187   2:         LazyColumn(
+1188   2:             modifier = Modifier.fillMaxSize(),
+1189   2:             contentPadding = PaddingValues(bottom = 56.dp, top = 12.dp, start = 12.dp, end = 12.dp),
+1190   2:             verticalArrangement = Arrangement.spacedBy(10.dp)
+1191   3:         ) {
+1192   3:             // شريط الصلاة على محمد وآل محمد المباركة
+1193   4:             item {
+1194   4:                 Card(
+1195   4:                     modifier = Modifier
+1196   4:                         .fillMaxWidth()
+1197   4:                         .padding(horizontal = 2.dp, vertical = 1.dp),
+1198   4:                     shape = RoundedCornerShape(16.dp),
+1199   4:                     colors = CardDefaults.cardColors(containerColor = themeSurface.copy(alpha = 0.95f)),
+1200   4:                     border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.5f)),
+1201   4:                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+1202   5:                 ) {
+1203   5:                     Box(
+1204   5:                         modifier = Modifier
+1205   5:                             .fillMaxWidth()
+1206   5:                             .padding(vertical = 10.dp, horizontal = 12.dp),
+1207   5:                         contentAlignment = Alignment.Center
+1208   6:                     ) {
+1209   6:                         Row(
+1210   6:                             modifier = Modifier.fillMaxWidth(),
+1211   6:                             horizontalArrangement = Arrangement.Center,
+1212   6:                             verticalAlignment = Alignment.CenterVertically
+1213   7:                         ) {
+1214   7:                             Text(
+1215   7:                                 text = "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَآلِ مُحَمَّدٍ الطَّيِّبِينَ الطَّاهِرِينَ",
+1216   7:                                 style = MaterialTheme.typography.titleMedium,
+1217   7:                                 fontWeight = FontWeight.Bold,
+1218   7:                                 fontSize = 15.sp,
+1219   7:                                 color = MaterialTheme.colorScheme.primary,
+1220   7:                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+1221   7:                                 modifier = Modifier
+1222   7:                                     .weight(1f)
+1223   7:                                     .padding(horizontal = 4.dp)
+1224   7:                             )
+1225   6:                         }
+1226   5:                     }
+1227   4:                 }
+1228   3:             }
+1229   3: 
+1230   3:             // Alternating Date Banner (Ad/Ticker style)
+1231   4:             item {
+1232   4:                 var showHijri by remember { mutableStateOf(true) }
+1233   4: 
+1234   5:                 LaunchedEffect(Unit) {
+1235   6:                     while (true) {
+1236   6:                         kotlinx.coroutines.delay(5000)
+1237   6:                         showHijri = !showHijri
+1238   5:                     }
+1239   4:                 }
+1240   4: 
+1241   4:                 Card(
+1242   4:                     modifier = Modifier
+1243   4:                         .fillMaxWidth()
+1244   4:                         .padding(horizontal = 2.dp, vertical = 1.dp),
+1245   4:                     shape = RoundedCornerShape(16.dp),
+1246   4:                     colors = CardDefaults.cardColors(containerColor = themePrimaryContainer),
+1247   4:                     border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.5f)),
+1248   4:                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+1249   5:                 ) {
+1250   5:                     Box(
+1251   5:                         modifier = Modifier
+1252   5:                             .fillMaxWidth()
+1253   5:                             .padding(vertical = 8.dp, horizontal = 12.dp),
+1254   5:                         contentAlignment = Alignment.Center
+1255   6:                     ) {
+1256   6:                         androidx.compose.animation.AnimatedContent(
+1257   6:                             targetState = showHijri,
+1258   7:                             transitionSpec = {
+1259   7:                                 (androidx.compose.animation.slideInVertically { height -> height } + androidx.compose.animation.fadeIn()) togetherWith
+1260   7:                                 (androidx.compose.animation.slideOutVertically { height -> -height } + androidx.compose.animation.fadeOut())
+1261   6:                             },
+1262   6:                             label = "date_banner_transition"
+1263   7:                         ) { targetShowHijri ->
+1264   7:                             Row(
+1265   7:                                 modifier = Modifier.fillMaxWidth(),
+1266   7:                                 horizontalArrangement = Arrangement.Center,
+1267   7:                                 verticalAlignment = Alignment.CenterVertically
+1268   8:                             ) {
+1269   8:                                 Column(
+1270   8:                                     horizontalAlignment = Alignment.CenterHorizontally,
+1271   8:                                     modifier = Modifier.weight(1f)
+1272   9:                                 ) {
+1273   9:                                     Text(
+1274   9:                                         text = if (targetShowHijri) "التاريخ الهجري" else "التاريخ الميلادي",
+1275   9:                                         style = MaterialTheme.typography.labelSmall,
+1276   9:                                         color = themeOnPrimaryContainer.copy(alpha = 0.8f),
+1277   9:                                         fontWeight = FontWeight.Bold
+1278   9:                                     )
+1279   9:                                     Spacer(modifier = Modifier.height(2.dp))
+1280   9:                                     Text(
+1281   9:                                         text = if (targetShowHijri) hijriString else gregorianString,
+1282   9:                                         style = MaterialTheme.typography.titleSmall,
+1283   9:                                         fontWeight = FontWeight.Bold,
+1284   9:                                         color = themeOnPrimaryContainer,
+1285   9:                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
+1286   9:                                     )
+1287   8:                                 }
+1288   7:                             }
+1289   6:                         }
+1290   5:                     }
+1291   4:                 }
+1292   3:             }
+1293   3: 
+1294   3:             // Ticker (Daily Deeds)
+1295   4:             if (showDailyDeeds) {
+1296   5:                 item {
+1297   6:                     val tickerItems = remember(weekdayAr, currentDay, monthNumber) {
+1298   6:                         val items = mutableListOf<Pair<String, String>>()
+1299   6:                         items.add("تسبيح يوم $weekdayAr" to "worship_text/تسبيح يوم $weekdayAr")
+1300   6:                         items.add("دعاء يوم $weekdayAr" to "worship_text/دعاء يوم $weekdayAr")
+1301   6:                         items.add("زيارة يوم $weekdayAr" to "worship_text/زيارة يوم $weekdayAr")
+1302   6: 
+1303   6:                         if (weekdayAr == "الخميس") items.add("قراءة دعاء كميل" to "worship_text/دعاء كميل بن زياد رضوان الله عليه")
+1304   6:                         if (weekdayAr == "الثلاثاء") items.add("قراءة دعاء التوسل" to "worship_text/دعاء التوسل بالأئمة (ع)")
+1305   6:                         if (weekdayAr == "الجمعة") items.add("قراءة دعاء الندبة" to "worship_text/دعاء الندبة")
+1306   6: 
+1307   6:                         items
+1308   5:                     }
+1309   5:                     var currentTickerIndex by remember { mutableIntStateOf(0) }
+1310   5: 
+1311   6:                     LaunchedEffect(tickerItems) {
+1312   7:                         while (true) {
+1313   7:                             kotlinx.coroutines.delay(7000)
+1314   8:                             if (tickerItems.isNotEmpty()) {
+1315   8:                                 currentTickerIndex = (currentTickerIndex + 1) % tickerItems.size
+1316   7:                             }
+1317   6:                         }
+1318   5:                     }
+1319   5: 
+1320   6:                     if (tickerItems.isNotEmpty()) {
+1321   6:                         Card(
+1322   6:                             modifier = Modifier.fillMaxWidth().clickable { navController.navigate(tickerItems[currentTickerIndex].second) },
+1323   6:                             shape = RoundedCornerShape(16.dp),
+1324   6:                             colors = CardDefaults.cardColors(containerColor = themeSecondaryContainer),
+1325   6:                             border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f)),
+1326   6:                             elevation = CardDefaults.cardElevation(1.dp)
+1327   7:                         ) {
+1328   7:                             Row(
+1329   7:                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+1330   7:                                 verticalAlignment = Alignment.CenterVertically,
+1331   7:                                 horizontalArrangement = Arrangement.SpaceBetween
+1332   8:                             ) {
+1333   8:                                 Icon(
+1334   8:                                     imageVector = Icons.Filled.Notifications,
+1335   8:                                     contentDescription = null,
+1336   8:                                     tint = themeTertiary,
+1337   8:                                     modifier = Modifier.size(16.dp)
+1338   8:                                 )
+1339   8: 
+1340   8:                                 Column(
+1341   8:                                     horizontalAlignment = Alignment.CenterHorizontally,
+1342   8:                                     modifier = Modifier.weight(1f)
+1343   9:                                 ) {
+1344   9:                                     Text(
+1345   9:                                         text = "أعمال اليوم",
+1346   9:                                         style = MaterialTheme.typography.labelSmall,
+1347   9:                                         color = themeOnSecondaryContainer.copy(alpha = 0.7f),
+1348   9:                                         fontWeight = FontWeight.Bold,
+1349   9:                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
+1350   9:                                     )
+1351   9:                                     Spacer(modifier = Modifier.height(2.dp))
+1352   9:                                     androidx.compose.animation.AnimatedContent(
+1353   9:                                         targetState = currentTickerIndex,
+1354  10:                                         transitionSpec = {
+1355  10:                                             (androidx.compose.animation.slideInVertically { height -> height } + androidx.compose.animation.fadeIn()).togetherWith(
+1356  10:                                                     androidx.compose.animation.slideOutVertically { height -> -height } + androidx.compose.animation.fadeOut()
+1357  10:                                             )
+1358   9:                                         },
+1359   9:                                         label = "tickerTransition"
+1360  10:                                     ) { targetIndex ->
+1361  10:                                         Text(
+1362  10:                                             text = tickerItems[targetIndex].first,
+1363  10:                                             style = MaterialTheme.typography.titleSmall,
+1364  10:                                             color = themeOnSecondaryContainer,
+1365  10:                                             fontWeight = FontWeight.Bold,
+1366  10:                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
+1367  10:                                         )
+1368   9:                                     }
+1369   8:                                 }
+1370   8: 
+1371   8:                                 Icon(
+1372   8:                                     imageVector = Icons.Filled.Notifications,
+1373   8:                                     contentDescription = null,
+1374   8:                                     tint = themeTertiary,
+1375   8:                                     modifier = Modifier.size(16.dp)
+1376   8:                                 )
+1377   7:                             }
+1378   6:                         }
+1379   5:                     }
+1380   4:                 }
+1381   3:             }
+1382   3: 
+1383   3:             // Collapsible Prayer Times Card (replacing Suggestions Banner)
+1384   4:             item {
+1385   4:                 CollapsibleHomePrayerCard(
+1386   4:                     prayerData = prayerData,
+1387   4:                     nextPrayer = nextPrayer,
+1388   4:                     liveTime = liveTime,
+1389   4:                     selectedCity = selectedCity,
+1390   4:                     currentLanguage = appLanguage,
+1391   4:                     onNavigateToPrayerTimes = { navController.navigate("prayer_times") }
+1392   4:                 )
+1393   3:             }
+1394   4:             if (showQabas) {
+1395   5:                 item {
+1396   5:                     val frameBorderColor = androidx.compose.ui.graphics.Color(0xFFB88E4C)
+1397   5:                     Card(
+1398   5:                         modifier = Modifier
+1399   5:                             .fillMaxWidth()
+1400   5:                             .padding(vertical = 4.dp)
+1401   6:                             .clickable {
+1402   7:                                 val intent = android.content.Intent(context, com.example.SawtQuranActivity::class.java).apply {
+1403   7:                                     putExtra("open_surah_id", qabasSurahId)
+1404   7:                                     putExtra("open_ayah_number", qabasAyahNumber)
+1405   6:                                 }
+1406   6:                                 context.startActivity(intent)
+1407   5:                             },
+1408   5:                         shape = RoundedCornerShape(18.dp),
+1409   5:                         colors = CardDefaults.cardColors(containerColor = themePrimaryContainer),
+1410   5:                         border = BorderStroke(1.dp, frameBorderColor.copy(alpha = 0.5f)),
+1411   5:                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+1412   6:                     ) {
+1413   6:                         Column(
+1414   6:                             modifier = Modifier
+1415   6:                                 .fillMaxWidth()
+1416   6:                                 .padding(14.dp)
+1417   7:                         ) {
+1418   7:                             Row(
+1419   7:                                 modifier = Modifier.fillMaxWidth(),
+1420   7:                                 horizontalArrangement = Arrangement.SpaceBetween,
+1421   7:                                 verticalAlignment = Alignment.CenterVertically
+1422   8:                             ) {
+1423   9:                                 Row(verticalAlignment = Alignment.CenterVertically) {
+1424   9:                                     Icon(
+1425   9:                                         imageVector = Icons.Filled.MenuBook,
+1426   9:                                         contentDescription = null,
+1427   9:                                         tint = frameBorderColor,
+1428   9:                                         modifier = Modifier.size(20.dp)
+1429   9:                                     )
+1430   9:                                     Spacer(modifier = Modifier.width(6.dp))
+1431   9:                                     Text(
+1432   9:                                         text = "قبس من كلام الله",
+1433   9:                                         style = MaterialTheme.typography.titleSmall,
+1434   9:                                         color = themeOnPrimaryContainer,
+1435   9:                                         fontWeight = FontWeight.Bold
+1436   9:                                     )
+1437   8:                                 }
+1438   8: 
+1439   8:                                 Row(
+1440   8:                                     verticalAlignment = Alignment.CenterVertically,
+1441   8:                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
+1442   9:                                 ) {
+1443   9:                                     IconButton(
+1444  10:                                         onClick = {
+1445  10:                                             audioPlayerManager.stop()
+1446  11:                                             homeCoroutineScope.launch {
+1447  12:                                                 try {
+1448  13:                                                     val ayah = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1449  13:                                                         quranRepo?.getRandomAyah()
+1450  12:                                                     }
+1451  13:                                                     if (ayah != null) {
+1452  14:                                                         val sName = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+1453  14:                                                             quranRepo?.getSurahNameById(ayah.surahId) ?: ""
+1454  13:                                                         }
+1455  13:                                                         qabasSurahId = ayah.surahId
+1456  13:                                                         qabasAyahNumber = ayah.ayahNumber
+1457  13:                                                         qabasSurahName = if (!sName.isNullOrBlank()) sName else "سورة رقم ${ayah.surahId}"
+1458  13:                                                         qabasAyahText = ayah.textUthmani
+1459  12:                                                     }
+1460  11:                                                 } catch (e: Exception) {}
+1461  10:                                             }
+1462   9:                                         },
+1463   9:                                         modifier = Modifier.size(24.dp)
+1464  10:                                     ) {
+1465  10:                                         Icon(
+1466  10:                                             imageVector = Icons.Filled.Refresh,
+1467  10:                                             contentDescription = "آية أخرى",
+1468  10:                                             tint = themeOnPrimaryContainer,
+1469  10:                                             modifier = Modifier.size(16.dp)
+1470  10:                                         )
+1471   9:                                     }
+1472   9: 
+1473   9:                                     Surface(
+1474   9:                                         shape = RoundedCornerShape(10.dp),
+1475   9:                                         color = themeSecondaryContainer,
+1476   9:                                         border = BorderStroke(1.dp, frameBorderColor.copy(alpha = 0.4f))
+1477  10:                                     ) {
+1478  10:                                         AnimatedContent(
+1479  10:                                             targetState = "$qabasSurahName - آية ${qabasAyahNumber.toArabicNumerals()}",
+1480  11:                                             transitionSpec = {
+1481  11:                                                 fadeIn() togetherWith fadeOut()
+1482  10:                                             },
+1483  10:                                             label = "suggested_ayah_ref_transition"
+1484  11:                                         ) { targetRef ->
+1485  11:                                             Text(
+1486  11:                                                 text = "سورة $targetRef",
+1487  11:                                                 style = MaterialTheme.typography.labelMedium,
+1488  11:                                                 fontWeight = FontWeight.Bold,
+1489  11:                                                 color = themeOnSecondaryContainer,
+1490  11:                                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+1491  11:                                              )
+1492  10:                                         }
+1493   9:                                     }
+1494   8:                                 }
+1495   7:                             }
+1496   7: 
+1497   7:                             Spacer(modifier = Modifier.height(10.dp))
+1498   7: 
+1499   7:                             // Authentic Mushaf Frame Box
+1500   7:                             Surface(
+1501   7:                                 shape = RoundedCornerShape(12.dp),
+1502   7:                                 color = MaterialTheme.colorScheme.surface,
+1503   7:                                 border = BorderStroke(1.5.dp, frameBorderColor.copy(alpha = 0.65f)),
+1504   7:                                 shadowElevation = 1.dp,
+1505   7:                                 modifier = Modifier.fillMaxWidth()
+1506   8:                             ) {
+1507   8:                                 Column(
+1508   8:                                     modifier = Modifier
+1509   8:                                         .fillMaxWidth()
+1510   8:                                         .padding(14.dp),
+1511   8:                                     horizontalAlignment = Alignment.CenterHorizontally
+1512   9:                                 ) {
+1513   9:                                     // Top Header of Mushaf Page
+1514   9:                                     val qabasJuz = com.example.ui.screens.getJuzNumber(qabasSurahId, qabasAyahNumber)
+1515   9:                                     Row(
+1516   9:                                         modifier = Modifier
+1517   9:                                             .fillMaxWidth()
+1518   9:                                             .padding(horizontal = 4.dp, vertical = 2.dp),
+1519   9:                                         horizontalArrangement = Arrangement.SpaceBetween,
+1520   9:                                         verticalAlignment = Alignment.CenterVertically
+1521  10:                                     ) {
+1522  10:                                         Text(
+1523  10:                                             text = "الجزء ${qabasJuz.toArabicNumerals()}",
+1524  10:                                             style = MaterialTheme.typography.titleMedium,
+1525  10:                                             fontWeight = FontWeight.Bold,
+1526  10:                                             fontFamily = com.example.ui.screens.QuranFontFamily,
+1527  10:                                             color = frameBorderColor
+1528  10:                                         )
+1529  10:                                         Text(
+1530  10:                                             text = "سورة $qabasSurahName",
+1531  10:                                             style = MaterialTheme.typography.titleMedium,
+1532  10:                                             fontWeight = FontWeight.Bold,
+1533  10:                                             fontFamily = com.example.ui.screens.QuranFontFamily,
+1534  10:                                             color = frameBorderColor
+1535  10:                                         )
+1536   9:                                     }
+1537   9: 
+1538   9:                                     HorizontalDivider(
+1539   9:                                         color = frameBorderColor.copy(alpha = 0.5f),
+1540   9:                                         thickness = 1.dp,
+1541   9:                                         modifier = Modifier.padding(top = 6.dp, bottom = 10.dp)
+1542   9:                                     )
+1543   9: 
+1544  10:                                     if (qabasAyahNumber == 1 && qabasSurahId != 9) {
+1545  10:                                         Text(
+1546  10:                                             text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+1547  10:                                             style = MaterialTheme.typography.headlineMedium.copy(
+1548  10:                                                 fontFamily = com.example.ui.screens.QuranFontFamily,
+1549  10:                                                 fontWeight = FontWeight.Bold,
+1550  10:                                                 color = MaterialTheme.colorScheme.onSurface
+1551  10:                                             ),
+1552  10:                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+1553  10:                                             modifier = Modifier.padding(bottom = 8.dp)
+1554  10:                                         )
+1555   9:                                     }
+1556   9: 
+1557   9:                                     AnimatedContent(
+1558   9:                                         targetState = qabasAyahText to qabasAyahNumber,
+1559  10:                                         transitionSpec = {
+1560  10:                                             (fadeIn() + scaleIn(initialScale = 0.95f)) togetherWith
+1561  10:                                             (fadeOut() + scaleOut(targetScale = 0.95f))
+1562   9:                                         },
+1563   9:                                         label = "suggested_ayah_text_transition"
+1564  10:                                     ) { (targetText, targetNum) ->
+1565  11:                                         val annotatedAyah = buildAnnotatedString {
+1566  11:                                             append(targetText)
+1567  11:                                             withStyle(
+1568  11:                                                 SpanStyle(
+1569  11:                                                     color = frameBorderColor,
+1570  11:                                                     fontWeight = FontWeight.Bold,
+1571  11:                                                     fontSize = 18.sp
+1572  11:                                                 )
+1573  12:                                             ) {
+1574  12:                                                 append(" ۝${targetNum.toArabicNumerals()} ")
+1575  11:                                             }
+1576  10:                                         }
+1577  10: 
+1578  10:                                         Text(
+1579  10:                                             text = annotatedAyah,
+1580  10:                                             style = androidx.compose.ui.text.TextStyle(
+1581  10:                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+1582  10:                                                 fontSize = 21.sp,
+1583  10:                                                 lineHeight = 40.sp,
+1584  10:                                                 fontFamily = com.example.ui.screens.QuranFontFamily,
+1585  10:                                                 color = MaterialTheme.colorScheme.onSurface
+1586  10:                                             ),
+1587  10:                                             modifier = Modifier
+1588  10:                                                 .fillMaxWidth()
+1589  10:                                                 .padding(horizontal = 4.dp, vertical = 4.dp)
+1590  10:                                         )
+1591   9:                                     }
+1592   9: 
+1593   9:                                     HorizontalDivider(
+1594   9:                                         color = frameBorderColor.copy(alpha = 0.35f),
+1595   9:                                         thickness = 0.8.dp,
+1596   9:                                         modifier = Modifier.padding(top = 10.dp, bottom = 8.dp)
+1597   9:                                     )
+1598   9: 
+1599   9:                                     // شريط أزرار الآية: نسخ الآية، ومشاركة كصورة
+1600   9:                                     Row(
+1601   9:                                         modifier = Modifier
+1602   9:                                             .fillMaxWidth()
+1603   9:                                             .padding(horizontal = 2.dp, vertical = 2.dp),
+1604   9:                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+1605   9:                                         verticalAlignment = Alignment.CenterVertically
+1606  10:                                     ) {
+1607  10:                                         // 1. زر مشاركة الآية كصورة
+1608  10:                                         Surface(
+1609  10:                                             onClick = { showPosterDialog = true },
+1610  10:                                             shape = RoundedCornerShape(10.dp),
+1611  10:                                             color = themeSecondaryContainer,
+1612  10:                                             border = BorderStroke(1.dp, frameBorderColor.copy(alpha = 0.45f)),
+1613  10:                                             modifier = Modifier.weight(1f)
+1614  11:                                         ) {
+1615  11:                                             Row(
+1616  11:                                                 modifier = Modifier.padding(vertical = 7.dp, horizontal = 4.dp),
+1617  11:                                                 verticalAlignment = Alignment.CenterVertically,
+1618  11:                                                 horizontalArrangement = Arrangement.Center
+1619  12:                                             ) {
+1620  12:                                                 Icon(
+1621  12:                                                     imageVector = Icons.Filled.Share,
+1622  12:                                                     contentDescription = "مشاركة الآية كصورة",
+1623  12:                                                     tint = frameBorderColor,
+1624  12:                                                     modifier = Modifier.size(15.dp)
+1625  12:                                                 )
+1626  12:                                                 Spacer(modifier = Modifier.width(3.dp))
+1627  12:                                                 Text(
+1628  12:                                                     text = "مشاركة كصورة",
+1629  12:                                                     style = MaterialTheme.typography.labelSmall,
+1630  12:                                                     fontWeight = FontWeight.Bold,
+1631  12:                                                     color = themeOnSecondaryContainer,
+1632  12:                                                     maxLines = 1
+1633  12:                                                 )
+1634  11:                                             }
+1635  10:                                         }
+1636  10: 
+1637  10:                                         // 2. زر نسخ النص
+1638  10:                                         val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+1639  10:                                         Surface(
+1640  11:                                             onClick = {
+1641  11:                                                 clipboardManager.setText(androidx.compose.ui.text.AnnotatedString("$qabasAyahText\n[$qabasSurahName: $qabasAyahNumber]"))
+1642  11:                                                 android.widget.Toast.makeText(context, "تم نسخ الآية", android.widget.Toast.LENGTH_SHORT).show()
+1643  10:                                             },
+1644  10:                                             shape = RoundedCornerShape(10.dp),
+1645  10:                                             color = themeSecondaryContainer,
+1646  10:                                             border = BorderStroke(1.dp, frameBorderColor.copy(alpha = 0.45f)),
+1647  10:                                             modifier = Modifier.weight(1f)
+1648  11:                                         ) {
+1649  11:                                             Row(
+1650  11:                                                 modifier = Modifier.padding(vertical = 7.dp, horizontal = 4.dp),
+1651  11:                                                 verticalAlignment = Alignment.CenterVertically,
+1652  11:                                                 horizontalArrangement = Arrangement.Center
+1653  12:                                             ) {
+1654  12:                                                 Icon(
+1655  12:                                                     imageVector = Icons.Filled.ContentCopy,
+1656  12:                                                     contentDescription = "نسخ النص",
+1657  12:                                                     tint = frameBorderColor,
+1658  12:                                                     modifier = Modifier.size(15.dp)
+1659  12:                                                 )
+1660  12:                                                 Spacer(modifier = Modifier.width(3.dp))
+1661  12:                                                 Text(
+1662  12:                                                     text = "نسخ النص",
+1663  12:                                                     style = MaterialTheme.typography.labelSmall,
+1664  12:                                                     fontWeight = FontWeight.Bold,
+1665  12:                                                     color = themeOnSecondaryContainer,
+1666  12:                                                     maxLines = 1
+1667  12:                                                 )
+1668  11:                                             }
+1669  10:                                         }
+1670   9:                                     }
+1671   9: 
+1672   9:                                     Spacer(modifier = Modifier.height(6.dp))
+1673   9: 
+1674   9:                                     Row(
+1675   9:                                         modifier = Modifier.fillMaxWidth(),
+1676   9:                                         horizontalArrangement = Arrangement.Center,
+1677   9:                                         verticalAlignment = Alignment.CenterVertically
+1678  10:                                     ) {
+1679  10:                                         Icon(
+1680  10:                                             imageVector = Icons.Filled.MenuBook,
+1681  10:                                             contentDescription = null,
+1682  10:                                             tint = frameBorderColor.copy(alpha = 0.75f),
+1683  10:                                             modifier = Modifier.size(12.dp)
+1684  10:                                         )
+1685  10:                                         Spacer(modifier = Modifier.width(4.dp))
+1686  10:                                         Text(
+1687  10:                                             text = "اضغط على البطاقة لفتح الآية في المصحف الشريف",
+1688  10:                                             style = MaterialTheme.typography.labelSmall,
+1689  10:                                             color = frameBorderColor.copy(alpha = 0.75f),
+1690  10:                                             fontWeight = FontWeight.Medium,
+1691  10:                                             fontSize = 10.5.sp
+1692  10:                                         )
+1693   9:                                     }
+1694   8:                                 }
+1695   7:                             }
+1696   6:                         }
+1697   5:                     }
+1698   4:                 }
+1699   3:             }
+1700   3: 
+1701   3:             // 3 Daily Cards
+1702   4:             item {
+1703   4:                 Row(
+1704   4:                     modifier = Modifier.fillMaxWidth(),
+1705   4:                     horizontalArrangement = Arrangement.spacedBy(8.dp)
+1706   5:                 ) {
+1707   5:                     // Ziyarat
+1708   5:                     Card(
+1709   5:                         modifier = Modifier.weight(1f).height(74.dp).clickable { navController.navigate("worship_text/زيارة يوم $weekdayAr") },
+1710   5:                         shape = RoundedCornerShape(14.dp),
+1711   5:                         colors = CardDefaults.cardColors(containerColor = themeSurface),
+1712   5:                         elevation = CardDefaults.cardElevation(1.dp),
+1713   5:                         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f))
+1714   6:                     ) {
+1715   7:                         Column(modifier = Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+1716   8:                             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(themeSecondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+1717   8:                                 androidx.compose.foundation.Image(
+1718   8:                                     painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_ziyarat_3d),
+1719   8:                                     contentDescription = "زيارة",
+1720   8:                                     modifier = Modifier.fillMaxSize(),
+1721   8:                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
+1722   8:                                 )
+1723   7:                             }
+1724   7:                             Spacer(modifier = Modifier.height(4.dp))
+1725   7:                             Text("زيارة $weekdayAr", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = themeOnSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+1726   6:                         }
+1727   5:                     }
+1728   5:                     // Dua
+1729   5:                     Card(
+1730   5:                         modifier = Modifier.weight(1f).height(74.dp).clickable { navController.navigate("worship_text/دعاء يوم $weekdayAr") },
+1731   5:                         shape = RoundedCornerShape(14.dp),
+1732   5:                         colors = CardDefaults.cardColors(containerColor = themeSurface),
+1733   5:                         elevation = CardDefaults.cardElevation(1.dp),
+1734   5:                         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f))
+1735   6:                     ) {
+1736   7:                         Column(modifier = Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+1737   8:                             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(themeSecondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+1738   8:                                 androidx.compose.foundation.Image(
+1739   8:                                     painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_dua_3d),
+1740   8:                                     contentDescription = "دعاء",
+1741   8:                                     modifier = Modifier.fillMaxSize(),
+1742   8:                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
+1743   8:                                 )
+1744   7:                             }
+1745   7:                             Spacer(modifier = Modifier.height(4.dp))
+1746   7:                             Text("دعاء $weekdayAr", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = themeOnSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+1747   6:                         }
+1748   5:                     }
+1749   5:                     // Tasbeeh
+1750   5:                     Card(
+1751   5:                         modifier = Modifier.weight(1f).height(74.dp).clickable { navController.navigate("worship_text/تسبيح يوم $weekdayAr") },
+1752   5:                         shape = RoundedCornerShape(14.dp),
+1753   5:                         colors = CardDefaults.cardColors(containerColor = themeSurface),
+1754   5:                         elevation = CardDefaults.cardElevation(1.dp),
+1755   5:                         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f))
+1756   6:                     ) {
+1757   7:                         Column(modifier = Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+1758   8:                             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(themeSecondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+1759   8:                                 androidx.compose.foundation.Image(
+1760   8:                                     painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_munajat_3d),
+1761   8:                                     contentDescription = "تسبيح",
+1762   8:                                     modifier = Modifier.fillMaxSize(),
+1763   8:                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
+1764   8:                                 )
+1765   7:                             }
+1766   7:                             Spacer(modifier = Modifier.height(4.dp))
+1767   7:                             Text("تسبيح $weekdayAr", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = themeOnSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+1768   6:                         }
+1769   5:                     }
+1770   4:                 }
+1771   3:             }
+1772   3: 
+1773   3:             // Prayer Times Card
+1774   4:             item {
+1775   4:                 Card(
+1776   4:                     modifier = Modifier
+1777   4:                         .fillMaxWidth()
+1778   4:                         .clickable { navController.navigate("prayer_times") },
+1779   4:                     shape = RoundedCornerShape(16.dp),
+1780   4:                     colors = CardDefaults.cardColors(containerColor = themePrimaryContainer),
+1781   4:                     border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f)),
+1782   4:                     elevation = CardDefaults.cardElevation(2.dp)
+1783   5:                 ) {
+1784   5:                     Row(
+1785   5:                         modifier = Modifier
+1786   5:                             .fillMaxWidth()
+1787   5:                             .padding(horizontal = 14.dp, vertical = 10.dp),
+1788   5:                         verticalAlignment = Alignment.CenterVertically,
+1789   5:                         horizontalArrangement = Arrangement.SpaceBetween
+1790   6:                     ) {
+1791   6:                         Row(
+1792   6:                             verticalAlignment = Alignment.CenterVertically,
+1793   6:                             modifier = Modifier.weight(1f)
+1794   7:                         ) {
+1795   7:                             Box(
+1796   7:                                 modifier = Modifier
+1797   7:                                     .size(44.dp)
+1798   7:                                     .clip(CircleShape)
+1799   7:                                     .background(themeSecondaryContainer.copy(alpha = 0.35f), CircleShape)
+1800   7:                                     .border(1.2.dp, themeTertiary, CircleShape),
+1801   7:                                 contentAlignment = Alignment.Center
+1802   8:                             ) {
+1803   8:                                 Icon(
+1804   8:                                     imageVector = Icons.Filled.Mosque,
+1805   8:                                     contentDescription = "مواقيت الصلاة",
+1806   8:                                     tint = MaterialTheme.colorScheme.primary,
+1807   8:                                     modifier = Modifier.size(24.dp)
+1808   8:                                 )
+1809   7:                             }
+1810   7:                             Spacer(modifier = Modifier.width(12.dp))
+1811   8:                             Column {
+1812   8:                                 Text(
+1813   8:                                     text = "مواقيت الصلاة والأذان",
+1814   8:                                     style = MaterialTheme.typography.titleSmall,
+1815   8:                                     fontWeight = FontWeight.Bold,
+1816   8:                                     color = themeOnPrimaryContainer
+1817   8:                                 )
+1818   8:                                 Spacer(modifier = Modifier.height(2.dp))
+1819   8:                                 Text(
+1820   8:                                     text = "مواقيت دقيقة، تنبيهات الأذان، واختيار المؤذن والمدينة",
+1821   8:                                     style = MaterialTheme.typography.labelSmall,
+1822   8:                                     color = themeOnPrimaryContainer.copy(alpha = 0.75f),
+1823   8:                                     fontSize = 11.sp,
+1824   8:                                     maxLines = 1,
+1825   8:                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+1826   8:                                 )
+1827   7:                             }
+1828   6:                         }
+1829   6:                         Icon(
+1830   6:                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+1831   6:                             contentDescription = null,
+1832   6:                             tint = themeTertiary,
+1833   6:                             modifier = Modifier.size(16.dp)
+1834   6:                         )
+1835   5:                     }
+1836   4:                 }
+1837   3:             }
+1838   3: 
+1839   3:             // Taqeebat & Masbaha Row
+1840   4:             item {
+1841   4:                 Row(
+1842   4:                     modifier = Modifier.fillMaxWidth(),
+1843   4:                     horizontalArrangement = Arrangement.spacedBy(8.dp)
+1844   5:                 ) {
+1845   5:                     // Taqeebat Card
+1846   5:                     Card(
+1847   5:                         modifier = Modifier
+1848   5:                             .weight(1f)
+1849   5:                             .clickable { navController.navigate("worship/تعقيبات الصلاة") },
+1850   5:                         shape = RoundedCornerShape(16.dp),
+1851   5:                         colors = CardDefaults.cardColors(containerColor = themePrimaryContainer),
+1852   5:                         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f)),
+1853   5:                         elevation = CardDefaults.cardElevation(2.dp)
+1854   6:                     ) {
+1855   6:                         Column(
+1856   6:                             modifier = Modifier
+1857   6:                                 .fillMaxWidth()
+1858   6:                                 .padding(vertical = 10.dp, horizontal = 8.dp),
+1859   6:                             horizontalAlignment = Alignment.CenterHorizontally,
+1860   6:                             verticalArrangement = Arrangement.Center
+1861   7:                         ) {
+1862   7:                             Box(
+1863   7:                                 modifier = Modifier
+1864   7:                                     .size(48.dp)
+1865   7:                                     .clip(CircleShape)
+1866   7:                                     .background(themeSecondaryContainer.copy(alpha = 0.3f), CircleShape)
+1867   7:                                     .border(1.2.dp, themeTertiary, CircleShape),
+1868   7:                                 contentAlignment = Alignment.Center
+1869   8:                             ) {
+1870   8:                                 androidx.compose.foundation.Image(
+1871   8:                                     painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_taqibat_3d),
+1872   8:                                     contentDescription = "تعقيبات الصلاة",
+1873   8:                                     modifier = Modifier.fillMaxSize(),
+1874   8:                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
+1875   8:                                 )
+1876   7:                             }
+1877   7:                             Spacer(modifier = Modifier.height(6.dp))
+1878   7:                             Text(
+1879   7:                                 text = "تعقيبات الصلاة",
+1880   7:                                 style = MaterialTheme.typography.titleSmall,
+1881   7:                                 fontWeight = FontWeight.Bold,
+1882   7:                                 color = themeOnPrimaryContainer,
+1883   7:                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+1884   7:                                 maxLines = 1,
+1885   7:                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+1886   7:                             )
+1887   6:                         }
+1888   5:                     }
+1889   5: 
+1890   5:                     // Masbaha Card
+1891   5:                     Card(
+1892   5:                         modifier = Modifier
+1893   5:                             .weight(1f)
+1894   5:                             .clickable(onClick = onNavigateToTasbeeh),
+1895   5:                         shape = RoundedCornerShape(16.dp),
+1896   5:                         colors = CardDefaults.cardColors(containerColor = themePrimaryContainer),
+1897   5:                         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f)),
+1898   5:                         elevation = CardDefaults.cardElevation(2.dp)
+1899   6:                     ) {
+1900   6:                         Column(
+1901   6:                             modifier = Modifier
+1902   6:                                 .fillMaxWidth()
+1903   6:                                 .padding(vertical = 10.dp, horizontal = 8.dp),
+1904   6:                             horizontalAlignment = Alignment.CenterHorizontally,
+1905   6:                             verticalArrangement = Arrangement.Center
+1906   7:                         ) {
+1907   7:                             Box(
+1908   7:                                 modifier = Modifier
+1909   7:                                     .size(48.dp)
+1910   7:                                     .clip(CircleShape)
+1911   7:                                     .background(themeSecondaryContainer.copy(alpha = 0.3f), CircleShape)
+1912   7:                                     .border(1.2.dp, themeTertiary, CircleShape),
+1913   7:                                 contentAlignment = Alignment.Center
+1914   8:                             ) {
+1915   8:                                 androidx.compose.foundation.Image(
+1916   8:                                     painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_worship_misbaha_3d),
+1917   8:                                     contentDescription = "المسبحة الإلكترونية",
+1918   8:                                     modifier = Modifier.fillMaxSize(),
+1919   8:                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
+1920   8:                                 )
+1921   7:                             }
+1922   7:                             Spacer(modifier = Modifier.height(6.dp))
+1923   7:                             Text(
+1924   7:                                 text = "المسبحة الإلكترونية",
+1925   7:                                 style = MaterialTheme.typography.titleSmall,
+1926   7:                                 fontWeight = FontWeight.Bold,
+1927   7:                                 color = themeOnPrimaryContainer,
+1928   7:                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+1929   7:                                 maxLines = 1,
+1930   7:                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+1931   7:                             )
+1932   6:                         }
+1933   5:                     }
+1934   4:                 }
+1935   3:             }
+1936   3: 
+1937   3:             // Events Bottom
+1938   4:             if (showEvents) {
+1939   5:                 item {
+1940   5:                     AutoScrollingEventsBanner(hijriRecord = hijriRecord)
+1941   4:                 }
+1942   3:             }
+1943   3: 
+1944   4:             item {
+1945   4:                 Spacer(modifier = Modifier.height(12.dp))
+1946   3:             }
+1947   2:         }
+1948   1:     }
+1949   1: 
+1950   2:     if (showPosterDialog) {
+1951   3:         val ayahEntity = remember(qabasSurahId, qabasAyahNumber, qabasAyahText) {
+1952   3:             com.example.data.local.AyahEntity(
+1953   3:                 id = 0,
+1954   3:                 surahId = qabasSurahId,
+1955   3:                 ayahNumber = qabasAyahNumber,
+1956   3:                 textUthmani = qabasAyahText
+1957   3:             )
+1958   2:         }
+1959   2:         com.example.ui.screens.AyahPosterDialog(
+1960   2:             ayah = ayahEntity,
+1961   2:             surahName = qabasSurahName,
+1962   2:             onDismiss = { showPosterDialog = false }
+1963   2:         )
+1964   1:     }
+1965   1: 
+1966   2:     if (showReciterDialog) {
+1967   2:         AlertDialog(
+1968   2:             onDismissRequest = { showReciterDialog = false },
+1969   2:             modifier = Modifier
+1970   2:                 .widthIn(max = 320.dp)
+1971   2:                 .fillMaxWidth(0.85f),
+1972   2:             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+1973   3:             title = {
+1974   4:                 Row(verticalAlignment = Alignment.CenterVertically) {
+1975   4:                     Icon(
+1976   4:                         imageVector = Icons.Filled.RecordVoiceOver,
+1977   4:                         contentDescription = null,
+1978   4:                         tint = androidx.compose.ui.graphics.Color(0xFFB88E4C),
+1979   4:                         modifier = Modifier.size(22.dp)
+1980   4:                     )
+1981   4:                     Spacer(modifier = Modifier.width(8.dp))
+1982   4:                     Text(
+1983   4:                         text = "اختر القارئ للآية",
+1984   4:                         style = MaterialTheme.typography.titleMedium,
+1985   4:                         fontWeight = FontWeight.Bold
+1986   4:                     )
+1987   3:                 }
+1988   2:             },
+1989   3:             text = {
+1990   3:                 androidx.compose.foundation.lazy.LazyColumn(
+1991   3:                     modifier = Modifier.heightIn(max = 280.dp),
+1992   3:                     verticalArrangement = Arrangement.spacedBy(4.dp)
+1993   4:                 ) {
+1994   5:                     items(com.example.audio.AVAILABLE_RECITERS) { reciter ->
+1995   5:                         Row(
+1996   5:                             modifier = Modifier
+1997   5:                                 .fillMaxWidth()
+1998   5:                                 .clip(RoundedCornerShape(10.dp))
+1999   6:                                 .clickable {
+2000   6:                                     audioPlayerManager.setReciter(reciter)
+2001   7:                                     if (isQabasAyahPlaying) {
+2002   7:                                         audioPlayerManager.playAyah(qabasSurahId, qabasAyahNumber, continuous = false)
+2003   6:                                     }
+2004   6:                                     showReciterDialog = false
+2005   5:                                 }
+2006   5:                                 .padding(vertical = 8.dp, horizontal = 10.dp),
+2007   5:                             verticalAlignment = Alignment.CenterVertically
+2008   6:                         ) {
+2009   6:                             RadioButton(
+2010   6:                                 selected = currentReciter.id == reciter.id,
+2011   6:                                 onClick = null,
+2012   6:                                 modifier = Modifier.size(20.dp)
+2013   6:                             )
+2014   6:                             Spacer(modifier = Modifier.width(10.dp))
+2015   6:                             Text(
+2016   6:                                 text = reciter.name,
+2017   6:                                 style = MaterialTheme.typography.bodyMedium,
+2018   6:                                 fontWeight = if (currentReciter.id == reciter.id) FontWeight.Bold else FontWeight.Normal
+2019   6:                             )
+2020   5:                         }
+2021   4:                     }
+2022   3:                 }
+2023   2:             },
+2024   3:             confirmButton = {
+2025   4:                 TextButton(onClick = { showReciterDialog = false }) {
+2026   4:                     Text("إغلاق", fontWeight = FontWeight.Bold)
+2027   3:                 }
+2028   2:             }
+2029   2:         )
+2030   1:     }
+2031   0: }
+2032   0: 
+2033   0: @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+2034   0: @Composable
+2035   1: fun FiguresAndEventsScreen(navController: NavHostController, hijriRecord: com.example.data.HijriDateRecord?) {
+2036   1:     val timingsViewModel: TimingsViewModel = viewModel()
+2037   1:     val aladhanData by timingsViewModel.aladhanData.collectAsState()
+2038   1: 
+2039   1:     val prayerViewModel: PrayerTimesViewModel = viewModel()
+2040   1:     val prayerData by prayerViewModel.prayerTimesData.collectAsState()
+2041   1:     val nextPrayer by prayerViewModel.nextPrayer.collectAsState()
+2042   1:     val liveTime by prayerViewModel.currentLiveTime.collectAsState()
+2043   1:     val appLanguage by prayerViewModel.appLanguage.collectAsState()
+2044   1:     val selectedCity by prayerViewModel.selectedCity.collectAsState()
+2045   1: 
+2046   1:     val context = androidx.compose.ui.platform.LocalContext.current
+2047   1:     val sharedPref = remember { context.getSharedPreferences("AhlAlBaytPrefs", android.content.Context.MODE_PRIVATE) }
+2048   1:     var showEvents by remember { mutableStateOf(sharedPref.getBoolean("show_events", true)) }
+2049   1: 
+2050   2:     val listener = remember {
+2051   3:         android.content.SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
+2052   4:             if (key == "show_events") {
+2053   4:                 showEvents = sp.getBoolean("show_events", true)
+2054   3:             }
+2055   2:         }
+2056   1:     }
+2057   1: 
+2058   2:     androidx.compose.runtime.DisposableEffect(sharedPref) {
+2059   2:         sharedPref.registerOnSharedPreferenceChangeListener(listener)
+2060   3:         onDispose {
+2061   3:             sharedPref.unregisterOnSharedPreferenceChangeListener(listener)
+2062   2:         }
+2063   1:     }
+2064   1: 
+2065   1:     var showImamsDialog by remember { mutableStateOf(false) }
+2066   1:     var showFiguresDialog by remember { mutableStateOf(false) }
+2067   1: 
+2068   2:     IslamicBackgroundBox(modifier = Modifier.fillMaxSize()) {
+2069   2: 
+2070   3:         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp, top = 40.dp)) {
+2071   4:             item {
+2072   4:                 Text(
+2073   4:                     "الشخصيات والمناسبات",
+2074   4:                     style = MaterialTheme.typography.titleLarge,
+2075   4:                     fontWeight = FontWeight.Bold,
+2076   4:                     color = if (MaterialTheme.colorScheme.onBackground == androidx.compose.ui.graphics.Color.White) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary,
+2077   4:                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+2078   4:                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2079   4:                 )
+2080   3:             }
+2081   3:             item { HijriCalendarCard(hijriRecord, showEvents = showEvents) }
+2082   4:             item {
+2083   4:                 Spacer(modifier = Modifier.height(24.dp))
+2084   4:                 Card(
+2085   4:                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).clickable(
+2086   4:                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+2087   4:                         indication = null
+2088   4:                     ) { showImamsDialog = true },
+2089   4:                     shape = RoundedCornerShape(24.dp),
+2090   4:                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+2091   4:                     border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f)),
+2092   4:                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+2093   5:                 ) {
+2094   5:                     Row(
+2095   5:                         modifier = Modifier.fillMaxWidth().padding(24.dp),
+2096   5:                         verticalAlignment = Alignment.CenterVertically,
+2097   5:                         horizontalArrangement = Arrangement.Center
+2098   6:                     ) {
+2099   6:                         Text(
+2100   6:                             "الأئمة المعصومين (عليهم السلام)",
+2101   6:                             style = MaterialTheme.typography.titleLarge,
+2102   6:                             fontWeight = FontWeight.Bold,
+2103   6:                             color = MaterialTheme.colorScheme.onPrimaryContainer,
+2104   6:                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2105   6:                         )
+2106   5:                     }
+2107   4:                 }
+2108   4:                 Spacer(modifier = Modifier.height(8.dp))
+2109   3:             }
+2110   4:             item {
+2111   4:                 Spacer(modifier = Modifier.height(16.dp))
+2112   4:                 Card(
+2113   4:                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).clickable(
+2114   4:                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+2115   4:                         indication = null
+2116   4:                     ) { showFiguresDialog = true },
+2117   4:                     shape = RoundedCornerShape(24.dp),
+2118   4:                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+2119   4:                     border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f)),
+2120   4:                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+2121   5:                 ) {
+2122   5:                     Row(
+2123   5:                         modifier = Modifier.fillMaxWidth().padding(24.dp),
+2124   5:                         verticalAlignment = Alignment.CenterVertically,
+2125   5:                         horizontalArrangement = Arrangement.Center
+2126   6:                     ) {
+2127   6:                         Text(
+2128   6:                             "الشخصيات البارزة",
+2129   6:                             style = MaterialTheme.typography.titleLarge,
+2130   6:                             fontWeight = FontWeight.Bold,
+2131   6:                             color = MaterialTheme.colorScheme.onPrimaryContainer,
+2132   6:                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2133   6:                         )
+2134   5:                     }
+2135   4:                 }
+2136   4:                 Spacer(modifier = Modifier.height(8.dp))
+2137   3:             }
+2138   2:         }
+2139   1:     }
+2140   1: 
+2141   2:     if (showImamsDialog) {
+2142   2:         androidx.compose.ui.window.Dialog(
+2143   2:             onDismissRequest = { showImamsDialog = false },
+2144   2:             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+2145   3:         ) {
+2146   3:             Surface(
+2147   3:                 modifier = Modifier
+2148   3:                     .fillMaxWidth(0.92f)
+2149   3:                     .fillMaxHeight(0.85f)
+2150   3:                     .clip(RoundedCornerShape(28.dp)),
+2151   3:                 color = MaterialTheme.colorScheme.surface,
+2152   3:                 tonalElevation = 8.dp
+2153   4:             ) {
+2154   5:                 IslamicBackgroundBox(modifier = Modifier.fillMaxSize()) {
+2155   6:                     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+2156   6:                         Row(
+2157   6:                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+2158   6:                             horizontalArrangement = Arrangement.SpaceBetween,
+2159   6:                             verticalAlignment = Alignment.CenterVertically
+2160   7:                         ) {
+2161   8:                             Row(verticalAlignment = Alignment.CenterVertically) {
+2162   8:                                 Text("🕌", style = MaterialTheme.typography.titleLarge)
+2163   8:                                 Spacer(modifier = Modifier.width(8.dp))
+2164   8:                                 Text(
+2165   8:                                     "الأئمة المعصومين (ع)",
+2166   8:                                     style = MaterialTheme.typography.titleMedium,
+2167   8:                                     fontWeight = FontWeight.Bold,
+2168   8:                                     color = MaterialTheme.colorScheme.onSurface
+2169   8:                                 )
+2170   7:                             }
+2171   8:                             IconButton(onClick = { showImamsDialog = false }) {
+2172   8:                                 Icon(Icons.Default.Close, contentDescription = "إغلاق")
+2173   7:                             }
+2174   6:                         }
+2175   6:                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+2176   6:                         Spacer(modifier = Modifier.height(8.dp))
+2177   7:                         LazyColumn(modifier = Modifier.fillMaxSize()) {
+2178   8:                             items(AhlAlBaytRepository.people) { person ->
+2179   9:                                 PersonCard(person, onClick = {
+2180   9:                                     showImamsDialog = false
+2181   9:                                     navController.navigate("detail/${person.id}")
+2182   8:                                 })
+2183   7:                             }
+2184   6:                         }
+2185   5:                     }
+2186   4:                 }
+2187   3:             }
+2188   2:         }
+2189   1:     }
+2190   1: 
+2191   2:     if (showFiguresDialog) {
+2192   2:         androidx.compose.ui.window.Dialog(
+2193   2:             onDismissRequest = { showFiguresDialog = false },
+2194   2:             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+2195   3:         ) {
+2196   3:             Surface(
+2197   3:                 modifier = Modifier
+2198   3:                     .fillMaxWidth(0.92f)
+2199   3:                     .fillMaxHeight(0.85f)
+2200   3:                     .clip(RoundedCornerShape(28.dp)),
+2201   3:                 color = MaterialTheme.colorScheme.surface,
+2202   3:                 tonalElevation = 8.dp
+2203   4:             ) {
+2204   5:                 IslamicBackgroundBox(modifier = Modifier.fillMaxSize()) {
+2205   6:                     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+2206   6:                         Row(
+2207   6:                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+2208   6:                             horizontalArrangement = Arrangement.SpaceBetween,
+2209   6:                             verticalAlignment = Alignment.CenterVertically
+2210   7:                         ) {
+2211   8:                             Row(verticalAlignment = Alignment.CenterVertically) {
+2212   8:                                 Text("⭐", style = MaterialTheme.typography.titleLarge)
+2213   8:                                 Spacer(modifier = Modifier.width(8.dp))
+2214   8:                                 Text(
+2215   8:                                     "الشخصيات البارزة",
+2216   8:                                     style = MaterialTheme.typography.titleMedium,
+2217   8:                                     fontWeight = FontWeight.Bold,
+2218   8:                                     color = MaterialTheme.colorScheme.onSurface
+2219   8:                                 )
+2220   7:                             }
+2221   8:                             IconButton(onClick = { showFiguresDialog = false }) {
+2222   8:                                 Icon(Icons.Default.Close, contentDescription = "إغلاق")
+2223   7:                             }
+2224   6:                         }
+2225   6:                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+2226   6:                         Spacer(modifier = Modifier.height(8.dp))
+2227   7:                         LazyColumn(modifier = Modifier.fillMaxSize()) {
+2228   8:                             items(AhlAlBaytRepository.famousFigures) { person ->
+2229   9:                                 PersonCard(person, onClick = {
+2230   9:                                     showFiguresDialog = false
+2231   9:                                     navController.navigate("detail/${person.id}")
+2232   8:                                 })
+2233   7:                             }
+2234   6:                         }
+2235   5:                     }
+2236   4:                 }
+2237   3:             }
+2238   2:         }
+2239   1:     }
+2240   0: }
+2241   0: 
+2242   0: @Composable
+2243   1: fun CalendarExpandableCard(aladhanData: AladhanResponse?, hijriRecord: com.example.data.HijriDateRecord?) {
+2244   1:     val context = androidx.compose.ui.platform.LocalContext.current
+2245   1:     val status = hijriRecord?.status ?: "estimated"
+2246   1: 
+2247   2:     val adjustedHijriDate = remember(hijriRecord) {
+2248   2:         com.example.data.HijriSyncManager.getCalculatedHijriDate(hijriRecord)
+2249   1:     }
+2250   1:     val currentYear = adjustedHijriDate.get(java.time.temporal.ChronoField.YEAR_OF_ERA)
+2251   1:     val currentMonth = adjustedHijriDate.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+2252   1:     val currentDay = adjustedHijriDate.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+2253   1:     val monthName = com.example.data.getHijriMonthName(currentMonth)
+2254   1:     val weekdayAr = getArabicWeekdayName(java.time.LocalDate.now().dayOfWeek)
+2255   1:     val hijriString = "$weekdayAr $currentDay $monthName $currentYear هـ"
+2256   1: 
+2257   1:     val localDate = java.time.LocalDate.now()
+2258   1:     val gregString = "$weekdayAr، ${localDate.dayOfMonth} ${getLevantineMonthName(localDate.monthValue)} ${localDate.year}"
+2259   1: 
+2260   1:     val upcomingEvents = remember { mutableStateListOf<UpcomingEvent>() }
+2261   1: 
+2262   2:     LaunchedEffect(currentYear, currentMonth, currentDay, hijriRecord) {
+2263   2:         upcomingEvents.clear()
+2264   3:         for (event in AhlAlBaytRepository.events) {
+2265   3:             val eventMonth = event.month
+2266   3:             val eventDay = event.day
+2267   3:             var eventYear = currentYear
+2268   4:             if (eventMonth < currentMonth || (eventMonth == currentMonth && eventDay < currentDay)) {
+2269   4:                 eventYear = currentYear + 1
+2270   3:             }
+2271   4:             try {
+2272   4:                 val eventHijrahDate = java.time.chrono.HijrahDate.of(eventYear, eventMonth, eventDay)
+2273   4:                 val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(adjustedHijriDate, eventHijrahDate).toInt()
+2274   4:                 val eventLocalDate = java.time.LocalDate.now().plusDays(daysBetween.toLong())
+2275   4:                 val gregorianDateStr = eventLocalDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+2276   5:                 if (daysBetween in 0..60) {
+2277   5:                     upcomingEvents.add(UpcomingEvent(event, daysBetween, gregorianDateStr, eventLocalDate, eventYear))
+2278   4:                 }
+2279   3:             } catch(e: Exception) {}
+2280   2:         }
+2281   2:         upcomingEvents.sortBy { it.daysUntil }
+2282   1:     }
+2283   1: 
+2284   1:     var isExpanded by remember { mutableStateOf(false) }
+2285   1:     val rotation = if (isExpanded) 180f else 0f
+2286   1: 
+2287   1:     Card(
+2288   1:         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).clickable(
+2289   1:             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+2290   1:             indication = null
+2291   1:         ) { isExpanded = !isExpanded },
+2292   1:         shape = RoundedCornerShape(24.dp),
+2293   1:         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+2294   1:         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+2295   1:         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f))
+2296   2:     ) {
+2297   3:         Column(modifier = Modifier.padding(24.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+2298   3:             Row(
+2299   3:                 modifier = Modifier.fillMaxWidth(),
+2300   3:                 verticalAlignment = Alignment.CenterVertically,
+2301   3:                 horizontalArrangement = Arrangement.SpaceBetween
+2302   4:             ) {
+2303   4:                 Text(
+2304   4:                     "التقويم والمناسبات",
+2305   4:                     style = MaterialTheme.typography.titleLarge,
+2306   4:                     fontWeight = FontWeight.Bold,
+2307   4:                     color = MaterialTheme.colorScheme.onPrimaryContainer
+2308   4:                 )
+2309   4:                 Icon(
+2310   4:                     imageVector = Icons.Filled.KeyboardArrowDown,
+2311   4:                     contentDescription = if (isExpanded) "طي" else "توسيع",
+2312   4:                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
+2313   4:                     modifier = Modifier.rotate(rotation)
+2314   4:                 )
+2315   3:             }
+2316   3: 
+2317   4:             if (isExpanded) {
+2318   5:                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+2319   5:                     Spacer(modifier = Modifier.height(16.dp))
+2320   5:                     Surface(
+2321   5:                         color = MaterialTheme.colorScheme.primary,
+2322   5:                         shape = RoundedCornerShape(16.dp),
+2323   5:                         modifier = Modifier.padding(vertical = 8.dp)
+2324   6:                     ) {
+2325   7:                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+2326   7:                             Text(
+2327   7:                                 text = hijriString,
+2328   7:                                 style = MaterialTheme.typography.titleLarge,
+2329   7:                                 fontWeight = FontWeight.Bold,
+2330   7:                                 color = MaterialTheme.colorScheme.onPrimary,
+2331   7:                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 4.dp),
+2332   7:                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2333   7:                             )
+2334   7:                             Row(
+2335   7:                                 verticalAlignment = Alignment.CenterVertically,
+2336   7:                                 modifier = Modifier.padding(bottom = 10.dp)
+2337   8:                             ) {
+2338   8:                                 Text(
+2339   8:                                     "التقويم الهجري وفق مكتب سماحة السيد علي السيستاني (دام ظله)",
+2340   8:                                     style = MaterialTheme.typography.labelSmall,
+2341   8:                                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+2342   8:                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2343   8:                                 )
+2344   7:                             }
+2345   7:                             Row(
+2346   7:                                 verticalAlignment = Alignment.CenterVertically,
+2347   7:                                 modifier = Modifier.padding(bottom = 10.dp)
+2348   8:                             ) {
+2349   9:                                 if (status == "verified") {
+2350   9:                                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFF81C784), modifier = Modifier.size(14.dp))
+2351   9:                                     Spacer(modifier = Modifier.width(4.dp))
+2352   9:                                     Text("مؤكد رسمياً", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+2353   9:                                 } else {
+2354   9:                                     Icon(Icons.Filled.Info, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFFFFB74D), modifier = Modifier.size(14.dp))
+2355   9:                                     Spacer(modifier = Modifier.width(4.dp))
+2356   9:                                     Text("تقديري بانتظار التحديث", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+2357   8:                                 }
+2358   7:                             }
+2359   6:                         }
+2360   5:                     }
+2361   5:                     Spacer(modifier = Modifier.height(8.dp))
+2362   5:                     Text(gregString, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+2363   5: 
+2364   6:                     if (upcomingEvents.isNotEmpty()) {
+2365   6:                 Spacer(modifier = Modifier.height(16.dp))
+2366   6:                 HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+2367   6:                 Spacer(modifier = Modifier.height(16.dp))
+2368   7:                 upcomingEvents.take(3).forEach { ev ->
+2369   8:                     val formattedGregorian = remember(ev.eventDate) {
+2370   8:                         "${getArabicWeekdayName(ev.eventDate.dayOfWeek)}، ${ev.eventDate.dayOfMonth} ${getLevantineMonthName(ev.eventDate.monthValue)} ${ev.eventDate.year}"
+2371   7:                     }
+2372   7:                     Card(
+2373   7:                         modifier = Modifier
+2374   7:                             .fillMaxWidth()
+2375   7:                             .padding(vertical = 6.dp),
+2376   7:                         colors = CardDefaults.cardColors(
+2377   7:                             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f)
+2378   7:                         ),
+2379   7:                         shape = RoundedCornerShape(16.dp),
+2380   7:                         border = androidx.compose.foundation.BorderStroke(
+2381   7:                             width = 1.dp,
+2382   7:                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)
+2383   7:                         )
+2384   8:                     ) {
+2385   8:                         Row(
+2386   8:                             modifier = Modifier
+2387   8:                                 .fillMaxWidth()
+2388   8:                                 .height(IntrinsicSize.Min),
+2389   8:                             verticalAlignment = Alignment.CenterVertically
+2390   9:                         ) {
+2391   9:                             // Elegant vertical indicator strip on the start side (right side in RTL)
+2392   9:                             Box(
+2393   9:                                 modifier = Modifier
+2394   9:                                     .width(6.dp)
+2395   9:                                     .fillMaxHeight()
+2396   9:                                     .background(
+2397   9:                                         if (ev.event.isMartyrdom) androidx.compose.ui.graphics.Color(0xFFEF5350)
+2398   9:                                         else androidx.compose.ui.graphics.Color(0xFF66BB6A)
+2399   9:                                     )
+2400   9:                             )
+2401   9: 
+2402   9:                             Column(
+2403   9:                                 modifier = Modifier
+2404   9:                                     .weight(1f)
+2405   9:                                     .padding(16.dp)
+2406  10:                             ) {
+2407  10:                                 // Row of badges: Type of event & Days remaining
+2408  10:                                 Row(
+2409  10:                                     modifier = Modifier.fillMaxWidth(),
+2410  10:                                     horizontalArrangement = Arrangement.SpaceBetween,
+2411  10:                                     verticalAlignment = Alignment.CenterVertically
+2412  11:                                 ) {
+2413  11:                                     // Event Category Tag
+2414  11:                                     Surface(
+2415  11:                                         color = if (ev.event.isMartyrdom) androidx.compose.ui.graphics.Color(0x22EF5350)
+2416  11:                                                 else androidx.compose.ui.graphics.Color(0x2266BB6A),
+2417  11:                                         shape = RoundedCornerShape(6.dp)
+2418  12:                                     ) {
+2419  12:                                         Text(
+2420  12:                                             text = if (ev.event.isMartyrdom) "ذكرى أليمة" else "ولادة مباركة",
+2421  12:                                             style = MaterialTheme.typography.labelSmall,
+2422  12:                                             fontWeight = FontWeight.Bold,
+2423  12:                                             color = if (ev.event.isMartyrdom) androidx.compose.ui.graphics.Color(0xFFFF8A80)
+2424  12:                                                     else androidx.compose.ui.graphics.Color(0xFFA5D6A7),
+2425  12:                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+2426  12:                                         )
+2427  11:                                     }
+2428  11: 
+2429  11:                                     // Countdown Badge
+2430  11:                                     Surface(
+2431  11:                                         color = if (ev.daysUntil == 0) MaterialTheme.colorScheme.errorContainer
+2432  11:                                                 else MaterialTheme.colorScheme.secondaryContainer,
+2433  11:                                         shape = RoundedCornerShape(6.dp)
+2434  12:                                     ) {
+2435  12:                                         Text(
+2436  12:                                             text = if (ev.daysUntil == 0) "اليوم" else "متبقي ${ev.daysUntil} يوم",
+2437  12:                                             style = MaterialTheme.typography.labelSmall,
+2438  12:                                             fontWeight = FontWeight.Bold,
+2439  12:                                             color = if (ev.daysUntil == 0) MaterialTheme.colorScheme.onErrorContainer
+2440  12:                                                     else MaterialTheme.colorScheme.onSecondaryContainer,
+2441  12:                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+2442  12:                                         )
+2443  11:                                     }
+2444  10:                                 }
+2445  10: 
+2446  10:                                 Spacer(modifier = Modifier.height(10.dp))
+2447  10: 
+2448  10:                                 // Event Title
+2449  10:                                 Text(
+2450  10:                                     text = ev.event.name,
+2451  10:                                     style = MaterialTheme.typography.titleMedium,
+2452  10:                                     fontWeight = FontWeight.Bold,
+2453  10:                                     color = MaterialTheme.colorScheme.onPrimaryContainer
+2454  10:                                 )
+2455  10: 
+2456  10:                                 Spacer(modifier = Modifier.height(6.dp))
+2457  10:                                 HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f))
+2458  10:                                 Spacer(modifier = Modifier.height(6.dp))
+2459  10: 
+2460  10:                                 // Event Dates Information List
+2461  10:                                 // 1. Historical Date Row (stacked vertically)
+2462  10:                                 Row(
+2463  10:                                     verticalAlignment = Alignment.CenterVertically,
+2464  10:                                     modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+2465  11:                                 ) {
+2466  11:                                     Icon(
+2467  11:                                         imageVector = Icons.Default.History,
+2468  11:                                         contentDescription = null,
+2469  11:                                         tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.6f),
+2470  11:                                         modifier = Modifier.size(20.dp)
+2471  11:                                     )
+2472  11:                                     Spacer(modifier = Modifier.width(12.dp))
+2473  12:                                     Column {
+2474  12:                                         Text(
+2475  12:                                             text = "تاريخ الحدث التاريخي",
+2476  12:                                             style = MaterialTheme.typography.bodySmall,
+2477  12:                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+2478  12:                                         )
+2479  12:                                         Spacer(modifier = Modifier.height(2.dp))
+2480  12:                                         Text(
+2481  12:                                             text = "${ev.event.day} ${getHijriMonthName(ev.event.month)} ${ev.event.historicalYear?.let { "$it هـ" } ?: ""}",
+2482  12:                                             style = MaterialTheme.typography.bodyMedium,
+2483  12:                                             fontWeight = FontWeight.Bold,
+2484  12:                                             color = MaterialTheme.colorScheme.onPrimaryContainer
+2485  12:                                         )
+2486  11:                                     }
+2487  10:                                 }
+2488  10: 
+2489  10:                                 Spacer(modifier = Modifier.height(8.dp))
+2490  10: 
+2491  10:                                 // 2. Next Occurrence Hijri Row (stacked vertically)
+2492  10:                                 Row(
+2493  10:                                     verticalAlignment = Alignment.CenterVertically,
+2494  10:                                     modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+2495  11:                                 ) {
+2496  11:                                     Icon(
+2497  11:                                         imageVector = Icons.Default.Event,
+2498  11:                                         contentDescription = null,
+2499  11:                                         tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.6f),
+2500  11:                                         modifier = Modifier.size(20.dp)
+2501  11:                                     )
+2502  11:                                     Spacer(modifier = Modifier.width(12.dp))
+2503  12:                                     Column {
+2504  12:                                         Text(
+2505  12:                                             text = "موعد المناسبة القادمة",
+2506  12:                                             style = MaterialTheme.typography.bodySmall,
+2507  12:                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+2508  12:                                         )
+2509  12:                                         Spacer(modifier = Modifier.height(2.dp))
+2510  12:                                         Text(
+2511  12:                                             text = "${ev.event.day} ${getHijriMonthName(ev.event.month)} ${ev.upcomingHijriYear} هـ",
+2512  12:                                             style = MaterialTheme.typography.bodyMedium,
+2513  12:                                             fontWeight = FontWeight.Bold,
+2514  12:                                             color = MaterialTheme.colorScheme.onPrimaryContainer
+2515  12:                                         )
+2516  11:                                     }
+2517  10:                                 }
+2518  10: 
+2519  10:                                 Spacer(modifier = Modifier.height(8.dp))
+2520  10: 
+2521  10:                                 // 3. Corresponding Gregorian Date Row (stacked vertically)
+2522  10:                                 Row(
+2523  10:                                     verticalAlignment = Alignment.CenterVertically,
+2524  10:                                     modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+2525  11:                                 ) {
+2526  11:                                     Icon(
+2527  11:                                         imageVector = Icons.Default.CalendarToday,
+2528  11:                                         contentDescription = null,
+2529  11:                                         tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.6f),
+2530  11:                                         modifier = Modifier.size(20.dp)
+2531  11:                                     )
+2532  11:                                     Spacer(modifier = Modifier.width(12.dp))
+2533  12:                                     Column {
+2534  12:                                         Text(
+2535  12:                                             text = "الموافق ميلادياً",
+2536  12:                                             style = MaterialTheme.typography.bodySmall,
+2537  12:                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+2538  12:                                         )
+2539  12:                                         Spacer(modifier = Modifier.height(2.dp))
+2540  12:                                         Text(
+2541  12:                                             text = formattedGregorian,
+2542  12:                                             style = MaterialTheme.typography.bodyMedium,
+2543  12:                                             fontWeight = FontWeight.Bold,
+2544  12:                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+2545  12:                                         )
+2546  11:                                     }
+2547  10:                                 }
+2548   9:                             }
+2549   8:                         }
+2550   7:                     }
+2551   6:                 }
+2552   5:             }
+2553   4:         }
+2554   3:     }
+2555   2: }
+2556   2: 
+2557   1: }
+2558   1: 
+2559   0: }
+2560   0: 
+2561   0: @Composable
+2562   1: fun PersonCard(person: Person, onClick: () -> Unit) {
+2563   1:     Card(
+2564   1:         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp).clickable(onClick = onClick),
+2565   1:         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+2566   1:         shape = RoundedCornerShape(16.dp),
+2567   1:         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+2568   1:         border = BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.4f))
+2569   2:     ) {
+2570   3:         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+2571   3:             Box(
+2572   3:                 modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+2573   3:                 contentAlignment = Alignment.Center
+2574   4:             ) {
+2575   4:                 Text("👤", style = MaterialTheme.typography.headlineSmall)
+2576   3:             }
+2577   3:             Spacer(modifier = Modifier.width(16.dp))
+2578   4:             Column(modifier = Modifier.weight(1f)) {
+2579   4:                 Text(person.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+2580   4:                 Text(person.title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+2581   3:             }
+2582   3:             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "تفاصيل", tint = MaterialTheme.colorScheme.primary)
+2583   2:         }
+2584   1:     }
+2585   0: }
+2586   0: 
+2587   0: 
+2588   1: fun getLevantineMonthName(month: Int): String {
+2589   2:     return when(month) {
+2590   2:         1 -> "كانون الثاني"
+2591   2:         2 -> "شباط"
+2592   2:         3 -> "آذار"
+2593   2:         4 -> "نيسان"
+2594   2:         5 -> "أيار"
+2595   2:         6 -> "حزيران"
+2596   2:         7 -> "تموز"
+2597   2:         8 -> "آب"
+2598   2:         9 -> "أيلول"
+2599   2:         10 -> "تشرين الأول"
+2600   2:         11 -> "تشرين الثاني"
+2601   2:         12 -> "كانون الأول"
+2602   2:         else -> ""
+2603   1:     }
+2604   0: }
+2605   0: 
+2606   1: fun getArabicWeekdayName(dayOfWeek: java.time.DayOfWeek): String {
+2607   2:     return when (dayOfWeek) {
+2608   2:         java.time.DayOfWeek.SATURDAY -> "السبت"
+2609   2:         java.time.DayOfWeek.SUNDAY -> "الأحد"
+2610   2:         java.time.DayOfWeek.MONDAY -> "الاثنين"
+2611   2:         java.time.DayOfWeek.TUESDAY -> "الثلاثاء"
+2612   2:         java.time.DayOfWeek.WEDNESDAY -> "الأربعاء"
+2613   2:         java.time.DayOfWeek.THURSDAY -> "الخميس"
+2614   2:         java.time.DayOfWeek.FRIDAY -> "الجمعة"
+2615   1:     }
+2616   0: }
+2617   0: 
+2618   1: fun Int.toArabicNumerals(): String {
+2619   1:     val arabicNumerals = arrayOf('٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩')
+2620   1:     return this.toString().map { if (it.isDigit()) arabicNumerals[it - '0'] else it }.joinToString("")
+2621   0: }
+2622   0: 
+2623   0: @Composable
+2624   1: fun HijriCalendarCard(hijriRecord: com.example.data.HijriDateRecord?, showEvents: Boolean = false) {
+2625   1:     val themePrimary = androidx.compose.material3.MaterialTheme.colorScheme.primary
+2626   1:     val themeOnSurface = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+2627   1:     val themeOnSurfaceVariant = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+2628   1:     val themeSurface = androidx.compose.material3.MaterialTheme.colorScheme.surface
+2629   1:     val themeOutline = androidx.compose.material3.MaterialTheme.colorScheme.outline
+2630   1:     val themeOutlineVariant = androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant
+2631   1: 
+2632   1:     val todayHijri = androidx.compose.runtime.remember(hijriRecord) { com.example.data.HijriSyncManager.getCalculatedHijriDate(hijriRecord) }
+2633   1:     var currentYear by androidx.compose.runtime.remember(todayHijri) { androidx.compose.runtime.mutableStateOf(todayHijri.get(java.time.temporal.ChronoField.YEAR_OF_ERA)) }
+2634   1:     var currentMonth by androidx.compose.runtime.remember(todayHijri) { androidx.compose.runtime.mutableStateOf(todayHijri.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)) }
+2635   1: 
+2636   1:     val monthName = com.example.data.getHijriMonthName(currentMonth)
+2637   1: 
+2638   1:     val firstDayHijri = androidx.compose.runtime.remember(currentYear, currentMonth) { java.time.chrono.HijrahDate.of(currentYear, currentMonth, 1) }
+2639   1:     val lengthOfMonth = firstDayHijri.lengthOfMonth()
+2640   1: 
+2641   2:     val firstDayObservedGregorian = androidx.compose.runtime.remember(firstDayHijri, hijriRecord) {
+2642   2:         val safeRecord = hijriRecord ?: com.example.data.HijriDateRecord(
+2643   2:             day = 9, month = 2, year = 1448, gregorianDateStr = "2026-07-24", status = "estimated"
+2644   2:         )
+2645   3:         val anchorHijri = try {
+2646   3:             java.time.chrono.HijrahDate.of(safeRecord.year, safeRecord.month, safeRecord.day)
+2647   3:         } catch (e: Exception) {
+2648   3:             java.time.chrono.HijrahDate.now()
+2649   2:         }
+2650   3:         val anchorGregorian = try {
+2651   3:             java.time.LocalDate.parse(safeRecord.gregorianDateStr)
+2652   3:         } catch (e: Exception) {
+2653   3:             java.time.LocalDate.now()
+2654   2:         }
+2655   2:         val daysDiff = java.time.temporal.ChronoUnit.DAYS.between(anchorHijri, firstDayHijri)
+2656   2:         anchorGregorian.plusDays(daysDiff)
+2657   1:     }
+2658   1: 
+2659   1:     val firstDayOfWeek = firstDayObservedGregorian.dayOfWeek.value // 1=Mon, 7=Sun
+2660   1:     val startDayIndex = if (firstDayOfWeek == 7) 0 else firstDayOfWeek // 0=Sun, 1=Mon...
+2661   1: 
+2662   2:     fun nextMonth() {
+2663   3:         if (currentMonth == 12) {
+2664   3:             currentMonth = 1
+2665   3:             currentYear++
+2666   3:         } else {
+2667   3:             currentMonth++
+2668   2:         }
+2669   1:     }
+2670   1: 
+2671   2:     fun prevMonth() {
+2672   3:         if (currentMonth == 1) {
+2673   3:             currentMonth = 12
+2674   3:             currentYear--
+2675   3:         } else {
+2676   3:             currentMonth--
+2677   2:         }
+2678   1:     }
+2679   1: 
+2680   2:     val currentMonthEvents = androidx.compose.runtime.remember(currentMonth) {
+2681   2:         com.example.data.AhlAlBaytRepository.events.filter { it.month == currentMonth }.sortedBy { it.day }
+2682   1:     }
+2683   1: 
+2684   1:     androidx.compose.material3.Card(
+2685   1:         modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(horizontal = if (showEvents) 24.dp else 0.dp),
+2686   1:         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+2687   1:         colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = themeSurface),
+2688   1:         elevation = androidx.compose.material3.CardDefaults.cardElevation(2.dp),
+2689   1:         border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFD4AF37).copy(alpha = 0.45f))
+2690   2:     ) {
+2691   3:         androidx.compose.foundation.layout.Column(modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(16.dp)) {
+2692   3:             // Header
+2693   3:             androidx.compose.foundation.layout.Row(
+2694   3:                 modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+2695   3:                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+2696   3:                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+2697   4:             ) {
+2698   5:                 androidx.compose.material3.IconButton(onClick = { prevMonth() }) {
+2699   5:                     @Suppress("DEPRECATION")
+2700   5:                     androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.KeyboardArrowRight, contentDescription = "Previous Month", tint = themePrimary)
+2701   4:                 }
+2702   4:                 androidx.compose.material3.Text(
+2703   4:                     text = "$monthName ${currentYear.toArabicNumerals()}",
+2704   4:                     style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+2705   4:                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+2706   4:                     color = themeOnSurface
+2707   4:                 )
+2708   5:                 androidx.compose.material3.IconButton(onClick = { nextMonth() }) {
+2709   5:                     @Suppress("DEPRECATION")
+2710   5:                     androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.KeyboardArrowLeft, contentDescription = "Next Month", tint = themePrimary)
+2711   4:                 }
+2712   3:             }
+2713   3: 
+2714   3:             androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
+2715   3: 
+2716   3:             val daysOfWeek = listOf("ح", "ن", "ث", "ر", "خ", "ج", "س")
+2717   4:             androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceAround) {
+2718   5:                 daysOfWeek.forEach { day ->
+2719   5:                     androidx.compose.material3.Text(
+2720   5:                         text = day,
+2721   5:                         style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+2722   5:                         color = themeOnSurface,
+2723   5:                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+2724   5:                         modifier = androidx.compose.ui.Modifier.weight(1f),
+2725   5:                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2726   5:                     )
+2727   4:                 }
+2728   3:             }
+2729   3: 
+2730   3:             androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+2731   3: 
+2732   3:             val totalCells = startDayIndex + lengthOfMonth
+2733   3:             val rows = kotlin.math.ceil(totalCells / 7.0).toInt()
+2734   3: 
+2735   4:             for (row in 0 until rows) {
+2736   5:                 androidx.compose.foundation.layout.Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceAround) {
+2737   6:                     for (col in 0 until 7) {
+2738   6:                         val cellIndex = row * 7 + col
+2739   6:                         val dayNumber = cellIndex - startDayIndex + 1
+2740   6: 
+2741   6:                         androidx.compose.foundation.layout.Box(
+2742   6:                             modifier = androidx.compose.ui.Modifier
+2743   6:                                 .weight(1f)
+2744   6:                                 .aspectRatio(1f)
+2745   6:                                 .padding(2.dp)
+2746   6:                                 .border(
+2747   6:                                     width = 0.5.dp,
+2748   6:                                     color = themeOutline.copy(alpha = 0.25f),
+2749   6:                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+2750   6:                                 ),
+2751   6:                             contentAlignment = androidx.compose.ui.Alignment.Center
+2752   7:                         ) {
+2753   8:                             if (dayNumber in 1..lengthOfMonth) {
+2754   8:                                 val isToday = currentYear == todayHijri.get(java.time.temporal.ChronoField.YEAR_OF_ERA) &&
+2755   8:                                               currentMonth == todayHijri.get(java.time.temporal.ChronoField.MONTH_OF_YEAR) &&
+2756   8:                                               dayNumber == todayHijri.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+2757   8:                                 val hasEvent = currentMonthEvents.any { it.day == dayNumber }
+2758   8: 
+2759   8:                                 androidx.compose.foundation.layout.Box(
+2760   8:                                     modifier = androidx.compose.ui.Modifier
+2761   8:                                         .fillMaxSize()
+2762   8:                                         .background(if (isToday) themePrimary else androidx.compose.ui.graphics.Color.Transparent, androidx.compose.foundation.shape.CircleShape),
+2763   8:                                     contentAlignment = androidx.compose.ui.Alignment.Center
+2764   9:                                 ) {
+2765  10:                                     androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+2766  10:                                         androidx.compose.material3.Text(
+2767  10:                                             text = dayNumber.toArabicNumerals(),
+2768  10:                                             color = if (isToday) androidx.compose.ui.graphics.Color.White else if (col == 5) themePrimary else themeOnSurface,
+2769  10:                                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+2770  10:                                             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge
+2771  10:                                         )
+2772  11:                                         if (showEvents && hasEvent && !isToday) {
+2773  11:                                             androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.size(4.dp).background(if (currentMonthEvents.find { it.day == dayNumber }?.isMartyrdom == true) androidx.compose.ui.graphics.Color(0xFFEF5350) else androidx.compose.ui.graphics.Color(0xFF66BB6A), androidx.compose.foundation.shape.CircleShape))
+2774  11:                                         } else if (showEvents && hasEvent && isToday) {
+2775  11:                                             androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.size(4.dp).background(androidx.compose.ui.graphics.Color.White, androidx.compose.foundation.shape.CircleShape))
+2776  10:                                         }
+2777   9:                                     }
+2778   8:                                 }
+2779   7:                             }
+2780   6:                         }
+2781   5:                     }
+2782   4:                 }
+2783   3:             }
+2784   3: 
+2785   4:             if (showEvents && currentMonthEvents.isNotEmpty()) {
+2786   4:                 var isEventsExpanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+2787   4: 
+2788   4:                 androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
+2789   4:                 androidx.compose.material3.HorizontalDivider(color = themeOutlineVariant.copy(alpha = 0.3f))
+2790   4:                 androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(6.dp))
+2791   4: 
+2792   4:                 androidx.compose.foundation.layout.Row(
+2793   4:                     modifier = androidx.compose.ui.Modifier
+2794   4:                         .fillMaxWidth()
+2795   4:                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+2796   4:                         .clickable { isEventsExpanded = !isEventsExpanded }
+2797   4:                         .padding(vertical = 8.dp, horizontal = 4.dp),
+2798   4:                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+2799   4:                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+2800   5:                 ) {
+2801   5:                     androidx.compose.material3.Text(
+2802   5:                         "أحداث هذا الشهر",
+2803   5:                         style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+2804   5:                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+2805   5:                         color = themeOnSurface
+2806   5:                     )
+2807   5: 
+2808   5:                     androidx.compose.foundation.layout.Row(
+2809   5:                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+2810   6:                     ) {
+2811   6:                         androidx.compose.material3.Text(
+2812   6:                             text = if (isEventsExpanded) "إخفاء" else "عرض",
+2813   6:                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+2814   6:                             color = themeOnSurfaceVariant,
+2815   6:                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+2816   6:                         )
+2817   6:                         androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.width(4.dp))
+2818   6:                         androidx.compose.material3.Icon(
+2819   6:                             imageVector = if (isEventsExpanded) androidx.compose.material.icons.Icons.Filled.KeyboardArrowUp else androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown,
+2820   6:                             contentDescription = if (isEventsExpanded) "إخفاء الأحداث" else "عرض الأحداث",
+2821   6:                             tint = themePrimary
+2822   6:                         )
+2823   5:                     }
+2824   4:                 }
+2825   4: 
+2826   5:                 androidx.compose.animation.AnimatedVisibility(visible = isEventsExpanded) {
+2827   5:                     androidx.compose.foundation.layout.Column(
+2828   5:                         modifier = androidx.compose.ui.Modifier.padding(top = 4.dp)
+2829   6:                     ) {
+2830   7:                         currentMonthEvents.forEach { event ->
+2831   7:                             androidx.compose.foundation.layout.Row(
+2832   7:                                 modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 6.dp),
+2833   7:                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+2834   8:                             ) {
+2835   8:                                 androidx.compose.foundation.layout.Box(
+2836   8:                                     modifier = androidx.compose.ui.Modifier.size(8.dp).background(
+2837   8:                                         color = if (event.isMartyrdom) androidx.compose.ui.graphics.Color(0xFFEF5350) else androidx.compose.ui.graphics.Color(0xFF66BB6A),
+2838   8:                                         shape = androidx.compose.foundation.shape.CircleShape
+2839   8:                                     )
+2840   8:                                 )
+2841   8:                                 androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.width(12.dp))
+2842   8:                                 androidx.compose.material3.Text(
+2843   8:                                     text = "${event.day.toArabicNumerals()} $monthName - ${event.name}",
+2844   8:                                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+2845   8:                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+2846   8:                                     color = themeOnSurface
+2847   8:                                 )
+2848   7:                             }
+2849   6:                         }
+2850   5:                     }
+2851   4:                 }
+2852   3:             }
+2853   2:         }
+2854   1:     }
+2855   0: }
+2856   0: 
+2857   0: 
+2858   0: 
+2859   0: @Composable
+2860   1: fun AutoScrollingEventsBanner(hijriRecord: com.example.data.HijriDateRecord?) {
+2861   1:     val isDark = com.example.ui.theme.ThemeManager.currentThemeMode.isDark
+2862   1:     val cardBg = MaterialTheme.colorScheme.surfaceVariant
+2863   1:     val titleColor = MaterialTheme.colorScheme.onSurface
+2864   1:     val textColor = MaterialTheme.colorScheme.onSurface
+2865   1:     val redTextColor = if (isDark) androidx.compose.ui.graphics.Color(0xFFFF8A80) else androidx.compose.ui.graphics.Color(0xFFC62828)
+2866   1: 
+2867   2:     val adjustedHijriDate = remember(hijriRecord) {
+2868   2:         com.example.data.HijriSyncManager.getCalculatedHijriDate(hijriRecord)
+2869   1:     }
+2870   1:     val currentYear = adjustedHijriDate.get(java.time.temporal.ChronoField.YEAR_OF_ERA)
+2871   1:     val currentMonth = adjustedHijriDate.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+2872   1:     val currentDay = adjustedHijriDate.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+2873   1: 
+2874   1:     val upcomingEvents = remember { mutableStateListOf<UpcomingEvent>() }
+2875   2:     LaunchedEffect(currentYear, currentMonth, currentDay, hijriRecord) {
+2876   2:         upcomingEvents.clear()
+2877   2:         val list = mutableListOf<UpcomingEvent>()
+2878   3:         for (event in AhlAlBaytRepository.events) {
+2879   3:             val eventMonth = event.month
+2880   3:             val eventDay = event.day
+2881   3:             var eventYear = currentYear
+2882   4:             if (eventMonth < currentMonth || (eventMonth == currentMonth && eventDay < currentDay)) {
+2883   4:                 eventYear = currentYear + 1
+2884   3:             }
+2885   4:             try {
+2886   4:                 val eventHijrahDate = java.time.chrono.HijrahDate.of(eventYear, eventMonth, eventDay)
+2887   4:                 val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(adjustedHijriDate, eventHijrahDate).toInt()
+2888   4:                 // Only include future events within the upcoming 2 months (~60 days)
+2889   5:                 if (daysBetween in 0..60) {
+2890   5:                     val eventLocalDate = java.time.LocalDate.now().plusDays(daysBetween.toLong())
+2891   5:                     val gregorianDateStr = eventLocalDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+2892   5:                     list.add(UpcomingEvent(event, daysBetween, gregorianDateStr, eventLocalDate, eventYear))
+2893   4:                 }
+2894   3:             } catch(e: Exception) {}
+2895   2:         }
+2896   2:         list.sortBy { it.daysUntil }
+2897   2: 
+2898   2:         // Fallback if no events occur in the next 60 days
+2899   3:         if (list.isEmpty()) {
+2900   4:             for (event in AhlAlBaytRepository.events) {
+2901   4:                 val eventMonth = event.month
+2902   4:                 val eventDay = event.day
+2903   4:                 var eventYear = currentYear
+2904   5:                 if (eventMonth < currentMonth || (eventMonth == currentMonth && eventDay < currentDay)) {
+2905   5:                     eventYear = currentYear + 1
+2906   4:                 }
+2907   5:                 try {
+2908   5:                     val eventHijrahDate = java.time.chrono.HijrahDate.of(eventYear, eventMonth, eventDay)
+2909   5:                     val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(adjustedHijriDate, eventHijrahDate).toInt()
+2910   6:                     if (daysBetween >= 0) {
+2911   6:                         val eventLocalDate = java.time.LocalDate.now().plusDays(daysBetween.toLong())
+2912   6:                         val gregorianDateStr = eventLocalDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+2913   6:                         list.add(UpcomingEvent(event, daysBetween, gregorianDateStr, eventLocalDate, eventYear))
+2914   5:                     }
+2915   4:                 } catch(e: Exception) {}
+2916   3:             }
+2917   3:             list.sortBy { it.daysUntil }
+2918   2:         }
+2919   2:         upcomingEvents.addAll(list)
+2920   1:     }
+2921   1: 
+2922   1:     var currentIndex by remember { mutableStateOf(0) }
+2923   1: 
+2924   2:     LaunchedEffect(upcomingEvents.size) {
+2925   3:         if (upcomingEvents.isNotEmpty()) {
+2926   4:             while (true) {
+2927   4:                 kotlinx.coroutines.delay(5000)
+2928   4:                 currentIndex = (currentIndex + 1) % upcomingEvents.size
+2929   3:             }
+2930   2:         }
+2931   1:     }
+2932   1: 
+2933   1:     Card(
+2934   1:         modifier = Modifier.fillMaxWidth().animateContentSize(),
+2935   1:         shape = RoundedCornerShape(24.dp),
+2936   1:         colors = CardDefaults.cardColors(containerColor = cardBg),
+2937   1:         elevation = CardDefaults.cardElevation(4.dp)
+2938   2:     ) {
+2939   2:         Column(
+2940   2:             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp).fillMaxWidth(),
+2941   2:             horizontalAlignment = Alignment.CenterHorizontally
+2942   3:         ) {
+2943   3:             Text(
+2944   3:                 text = "الأحداث",
+2945   3:                 style = MaterialTheme.typography.titleLarge,
+2946   3:                 fontWeight = FontWeight.Bold,
+2947   3:                 color = titleColor,
+2948   3:                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
+2949   3:             )
+2950   3: 
+2951   3:             Spacer(modifier = Modifier.height(10.dp))
+2952   3: 
+2953   3:             Box(
+2954   3:                 modifier = Modifier.fillMaxWidth(),
+2955   3:                 contentAlignment = Alignment.Center
+2956   4:             ) {
+2957   5:                 if (upcomingEvents.isNotEmpty()) {
+2958   5:                     androidx.compose.animation.AnimatedContent(
+2959   5:                         targetState = currentIndex,
+2960   6:                         transitionSpec = {
+2961   6:                             (androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(500)) +
+2962   6:                             androidx.compose.animation.slideInVertically(animationSpec = androidx.compose.animation.core.tween(500)) { height -> height }).togetherWith(
+2963   6:                                 androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(500)) +
+2964   6:                                 androidx.compose.animation.slideOutVertically(animationSpec = androidx.compose.animation.core.tween(500)) { height -> -height }
+2965   6:                             )
+2966   5:                         },
+2967   5:                         label = "events_banner"
+2968   6:                     ) { index ->
+2969   6:                         val event = upcomingEvents.getOrNull(index)
+2970   7:                         if (event != null) {
+2971   7:                             val hijriDateStr = "${event.event.day.toArabicNumerals()} ${com.example.data.getHijriMonthName(event.event.month)}"
+2972   8:                             val remainingStr = when (event.daysUntil) {
+2973   8:                                 0 -> "اليوم!"
+2974   8:                                 1 -> "متبقي يوم واحد"
+2975   8:                                 2 -> "متبقي يومان"
+2976   8:                                 in 3..10 -> "متبقي ${event.daysUntil.toArabicNumerals()} أيام"
+2977   8:                                 else -> "متبقي ${event.daysUntil.toArabicNumerals()} يوم"
+2978   7:                             }
+2979   7:                             val fullDetailsStr = "$hijriDateStr | ${event.gregorianDateStr} م | $remainingStr"
+2980   7: 
+2981   7:                             val formattedEventName = applySmartKashida(event.event.name)
+2982   7: 
+2983   7:                             Column(
+2984   7:                                 modifier = Modifier.fillMaxWidth(),
+2985   7:                                 horizontalAlignment = Alignment.CenterHorizontally,
+2986   7:                                 verticalArrangement = Arrangement.Center
+2987   8:                             ) {
+2988   8:                                 Text(
+2989   8:                                     text = formattedEventName,
+2990   8:                                     style = MaterialTheme.typography.bodyLarge,
+2991   8:                                     color = textColor,
+2992   8:                                     fontWeight = FontWeight.Bold,
+2993   8:                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+2994   8:                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+2995   8:                                 )
+2996   8:                                 Spacer(modifier = Modifier.height(6.dp))
+2997   8:                                 Text(
+2998   8:                                     text = fullDetailsStr,
+2999   8:                                     style = MaterialTheme.typography.bodyMedium,
+3000   8:                                     color = redTextColor,
+3001   8:                                     fontWeight = FontWeight.Bold,
+3002   8:                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
+3003   8:                                 )
+3004   7:                             }
+3005   6:                         }
+3006   5:                     }
+3007   5:                 } else {
+3008   5:                     Text(
+3009   5:                         text = "لا توجد أحداث قريبة في الشهرين القادمين",
+3010   5:                         color = textColor,
+3011   5:                         style = MaterialTheme.typography.bodyMedium,
+3012   5:                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
+3013   5:                     )
+3014   4:                 }
+3015   3:             }
+3016   2:         }
+3017   1:     }
+3018   0: }
+3019   0: 
+3020   0: fun Modifier.swipeGesture(
+3021   0:     key: Any?,
+3022   0:     requireEdge: Boolean = false,
+3023   0:     onSwipeLeft: (() -> Unit)? = null,
+3024   0:     onSwipeRight: (() -> Unit)? = null
+3025   1: ): Modifier = this.pointerInput(key) {
+3026   1:     var totalDragX = 0f
+3027   1:     var isEligibleGesture = true
+3028   1:     detectHorizontalDragGestures(
+3029   2:         onDragStart = { offset ->
+3030   2:             totalDragX = 0f
+3031   3:             if (requireEdge) {
+3032   3:                 val width = size.width
+3033   3:                 val edgeThreshold = width * 0.20f
+3034   3:                 isEligibleGesture = offset.x < edgeThreshold || offset.x > (width - edgeThreshold)
+3035   3:             } else {
+3036   3:                 isEligibleGesture = true
+3037   2:             }
+3038   1:         },
+3039   2:         onDragEnd = {
+3040   3:             if (isEligibleGesture) {
+3041   4:                 if (totalDragX > 150f) {
+3042   4:                     onSwipeRight?.invoke()
+3043   4:                 } else if (totalDragX < -150f) {
+3044   4:                     onSwipeLeft?.invoke()
+3045   3:                 }
+3046   2:             }
+3047   1:         },
+3048   2:         onDragCancel = {
+3049   2:             totalDragX = 0f
+3050   2:             isEligibleGesture = true
+3051   1:         },
+3052   2:         onHorizontalDrag = { change, dragAmount ->
+3053   3:             if (isEligibleGesture) {
+3054   3:                 change.consume()
+3055   3:                 totalDragX += dragAmount
+3056   2:             }
+3057   1:         }
+3058   1:     )
+3059   0: }

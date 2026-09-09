@@ -1,0 +1,41 @@
+1371   8:                                 Icon(
+1372   8:                                     imageVector = Icons.Filled.Notifications,
+1373   8:                                     contentDescription = null,
+1374   8:                                     tint = themeTertiary,
+1375   8:                                     modifier = Modifier.size(16.dp)
+1376   8:                                 )
+1377   7:                             }
+1378   6:                         }
+1379   5:                     }
+1380   4:                 }
+1381   3:             }
+1382   3: 
+1383   3:             // Collapsible Prayer Times Card (replacing Suggestions Banner)
+1384   4:             item {
+1385   4:                 CollapsibleHomePrayerCard(
+1386   4:                     prayerData = prayerData,
+1387   4:                     nextPrayer = nextPrayer,
+1388   4:                     liveTime = liveTime,
+1389   4:                     selectedCity = selectedCity,
+1390   4:                     currentLanguage = appLanguage,
+1391   4:                     onNavigateToPrayerTimes = { navController.navigate("prayer_times") }
+1392   4:                 )
+1393   3:             }
+1394   4:             if (showQabas) {
+1395   5:                 item {
+1396   5:                     val frameBorderColor = androidx.compose.ui.graphics.Color(0xFFB88E4C)
+1397   5:                     Card(
+1398   5:                         modifier = Modifier
+1399   5:                             .fillMaxWidth()
+1400   5:                             .padding(vertical = 4.dp)
+1401   6:                             .clickable {
+1402   7:                                 val intent = android.content.Intent(context, com.example.SawtQuranActivity::class.java).apply {
+1403   7:                                     putExtra("open_surah_id", qabasSurahId)
+1404   7:                                     putExtra("open_ayah_number", qabasAyahNumber)
+1405   6:                                 }
+1406   6:                                 context.startActivity(intent)
+1407   5:                             },
+1408   5:                         shape = RoundedCornerShape(18.dp),
+1409   5:                         colors = CardDefaults.cardColors(containerColor = themePrimaryContainer),
+1410   5:                         border = BorderStroke(1.dp, frameBorderColor.copy(alpha = 0.5f)),
+1411   5:                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)

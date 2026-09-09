@@ -1,0 +1,9 @@
+    val timingsViewModel: TimingsViewModel = viewModel()
+    val aladhanData by timingsViewModel.aladhanData.collectAsState()
+
+    val prayerViewModel: PrayerTimesViewModel = viewModel()
+    val prayerData by prayerViewModel.prayerTimesData.collectAsState()
+    val nextPrayer by prayerViewModel.nextPrayer.collectAsState()
+    val liveTime by prayerViewModel.currentLiveTime.collectAsState()
+    val appLanguage by prayerViewModel.appLanguage.collectAsState()
+    val selectedCity by prayerViewModel.selectedCity.collectAsState()
