@@ -55,18 +55,17 @@ object AyahNotificationHelper {
         var processedText = rawText.trim()
         var calculatedEndAyah = maxOf(startAyah, endAyah)
 
-        // If rawText has '*' separators for multiple verses
         if (processedText.contains("*")) {
             val parts = processedText.split("*").map { it.trim() }.filter { it.isNotEmpty() }
             calculatedEndAyah = startAyah + parts.size - 1
             processedText = parts.mapIndexed { index, part ->
                 val currentAyahNum = startAyah + index
-                val cleanPart = part.replace(Regex("۝.*$"), "").trim()
-                "$cleanPart ۝${currentAyahNum.toArabicNumerals()}"
+                val cleanPart = part.replace(Regex("[۝﴿﴾\\d٠-٩]+$"), "").trim()
+                "$cleanPart ﴿${currentAyahNum.toArabicNumerals()}﴾"
             }.joinToString(" ")
-        } else if (!processedText.contains("۝")) {
-            // Verse without ۝ symbol
-            processedText = "$processedText ۝${startAyah.toArabicNumerals()}"
+        } else if (!processedText.contains("﴿")) {
+            val clean = processedText.replace(Regex("[۝\\d٠-٩]+$"), "").trim()
+            processedText = "$clean ﴿${startAyah.toArabicNumerals()}﴾"
         }
 
         return processedText to calculatedEndAyah
@@ -145,13 +144,13 @@ object AyahNotificationHelper {
             "سورة $surahName، الآية ${ayahNumber.toArabicNumerals()}"
         }
 
-        val fullAyahFormatted = "﴿ $formattedAyahText ﴾ - $referenceText"
+        val fullAyahFormatted = "$formattedAyahText - $referenceText"
         val largeIcon = getAppLargeIcon(context)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(customTitle)
-            .setContentText("﴿ $formattedAyahText ﴾")
+            .setContentText(formattedAyahText)
             .setSubText("نور العترة")
             .setStyle(
                 NotificationCompat.BigTextStyle()
