@@ -36,12 +36,49 @@ object AyahNotificationHelper {
         }
     }
 
+    private fun Int.toArabicNumerals(): String {
+        val arabicDigits = arrayOf("٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩")
+        return this.toString().map { char ->
+            if (char.isDigit()) {
+                arabicDigits[char.toString().toInt()]
+            } else {
+                char.toString()
+            }
+        }.joinToString("")
+    }
+
+    private fun formatQuranicVerseText(
+        rawText: String,
+        startAyah: Int,
+        endAyah: Int
+    ): Pair<String, Int> {
+        var processedText = rawText.trim()
+        var calculatedEndAyah = maxOf(startAyah, endAyah)
+
+        // If rawText has '*' separators for multiple verses
+        if (processedText.contains("*")) {
+            val parts = processedText.split("*").map { it.trim() }.filter { it.isNotEmpty() }
+            calculatedEndAyah = startAyah + parts.size - 1
+            processedText = parts.mapIndexed { index, part ->
+                val currentAyahNum = startAyah + index
+                val cleanPart = part.replace(Regex("۝.*$"), "").trim()
+                "$cleanPart ۝${currentAyahNum.toArabicNumerals()}"
+            }.joinToString(" ")
+        } else if (!processedText.contains("۝")) {
+            // Verse without ۝ symbol
+            processedText = "$processedText ۝${startAyah.toArabicNumerals()}"
+        }
+
+        return processedText to calculatedEndAyah
+    }
+
     fun showAyahNotification(
         context: Context,
         ayahText: String,
         surahName: String,
         ayahNumber: Int,
         surahId: Int,
+        endAyahNumber: Int = ayahNumber,
         customTitle: String = "هل استمعت اليوم لكلام الله؟ 📖"
     ) {
         if (!com.example.data.local.NotificationSettingsManager.areNotificationsEnabled(context) ||
@@ -101,13 +138,20 @@ object AyahNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val fullAyahFormatted = "﴿ $ayahText ﴾ - سورة $surahName, الآية $ayahNumber"
+        val (formattedAyahText, finalEndAyah) = formatQuranicVerseText(ayahText, ayahNumber, endAyahNumber)
+        val referenceText = if (finalEndAyah > ayahNumber) {
+            "سورة $surahName، الآيات ${ayahNumber.toArabicNumerals()} - ${finalEndAyah.toArabicNumerals()}"
+        } else {
+            "سورة $surahName، الآية ${ayahNumber.toArabicNumerals()}"
+        }
+
+        val fullAyahFormatted = "﴿ $formattedAyahText ﴾ - $referenceText"
         val largeIcon = getAppLargeIcon(context)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(customTitle)
-            .setContentText("﴿ $ayahText ﴾")
+            .setContentText("﴿ $formattedAyahText ﴾")
             .setSubText("نور العترة")
             .setStyle(
                 NotificationCompat.BigTextStyle()
@@ -117,7 +161,6 @@ object AyahNotificationHelper {
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
-            .setGroup("GROUP_NOOR_GENERAL_NOTIFICATIONS")
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(pendingReadIntent)
             .addAction(R.drawable.ic_notification, "استمع الآن ▶", pendingListenIntent)
@@ -130,6 +173,7 @@ object AyahNotificationHelper {
         }
 
         notificationManager.notify(notificationId, builder.build())
+        NotificationRateLimiter.recordNotificationPosted(context)
 
         // Also save to internal database so it appears in the app's notification history
         try {

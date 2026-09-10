@@ -44,6 +44,7 @@ class NotificationAlarmReceiver : BroadcastReceiver() {
                     surahName = verse.surahName,
                     ayahNumber = verse.ayahNumber,
                     surahId = verse.surahId,
+                    endAyahNumber = verse.endAyahNumber,
                     customTitle = "نفحات من القرآن الكريم 📖"
                 )
             } else if (azkarEnabled) {

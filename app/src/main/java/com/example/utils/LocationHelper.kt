@@ -375,7 +375,7 @@ object LocationHelper {
             connection.connectTimeout = 3000
             connection.readTimeout = 3000
             connection.requestMethod = "GET"
-            connection.setRequestProperty("User-Agent", "NoorAlAtraApp/4.80.0")
+            connection.setRequestProperty("User-Agent", "NoorAlAtraApp/4.90.0")
 
             if (connection.responseCode == 200) {
                 val reader = BufferedReader(InputStreamReader(connection.inputStream))

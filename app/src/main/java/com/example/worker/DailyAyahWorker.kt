@@ -40,6 +40,7 @@ class DailyAyahWorker(
             surahName = ayahOfDay.surahName,
             ayahNumber = ayahOfDay.ayahNumber,
             surahId = ayahOfDay.surahId,
+            endAyahNumber = ayahOfDay.endAyahNumber,
             customTitle = "📖 آية اليوم المباركة"
         )
 

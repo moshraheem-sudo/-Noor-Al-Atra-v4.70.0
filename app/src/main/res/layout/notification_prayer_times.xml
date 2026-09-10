@@ -6,23 +6,30 @@
     android:layout_gravity="center_vertical"
     android:paddingTop="6dp"
     android:paddingBottom="6dp"
-    android:paddingLeft="4dp"
-    android:paddingRight="4dp"
+    android:paddingLeft="2dp"
+    android:paddingRight="2dp"
     android:weightSum="4">
 
-    <!-- Fajr -->
+    <!-- Fajr (الفجر) -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:layout_marginStart="3dp"
+        android:layout_marginEnd="3dp"
         android:orientation="vertical"
-        android:gravity="center">
+        android:gravity="center"
+        android:background="@drawable/notification_prayer_tile_bg"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="الفجر"
-            android:textColor="#222222"
-            android:textSize="10.5sp"
+            android:textColor="@color/notification_prayer_title"
+            android:textSize="11.5sp"
             android:maxLines="1"
             android:textStyle="bold" />
         <TextView
@@ -30,8 +37,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="00:00"
-            android:textColor="#555555"
-            android:textSize="9.5sp"
+            android:textColor="@color/notification_prayer_time"
+            android:textSize="11sp"
+            android:textStyle="bold"
             android:maxLines="1"
             android:layout_marginTop="2dp" />
     </LinearLayout>
@@ -41,14 +49,21 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:layout_marginStart="3dp"
+        android:layout_marginEnd="3dp"
         android:orientation="vertical"
-        android:gravity="center">
+        android:gravity="center"
+        android:background="@drawable/notification_prayer_tile_bg"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="الشروق"
-            android:textColor="#222222"
-            android:textSize="10.5sp"
+            android:textColor="@color/notification_prayer_title"
+            android:textSize="11.5sp"
             android:maxLines="1"
             android:textStyle="bold" />
         <TextView
@@ -56,8 +71,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="00:00"
-            android:textColor="#555555"
-            android:textSize="9.5sp"
+            android:textColor="@color/notification_prayer_time"
+            android:textSize="11sp"
+            android:textStyle="bold"
             android:maxLines="1"
             android:layout_marginTop="2dp" />
     </LinearLayout>
@@ -67,14 +83,21 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:layout_marginStart="3dp"
+        android:layout_marginEnd="3dp"
         android:orientation="vertical"
-        android:gravity="center">
+        android:gravity="center"
+        android:background="@drawable/notification_prayer_tile_bg"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="الظهر"
-            android:textColor="#222222"
-            android:textSize="10.5sp"
+            android:textColor="@color/notification_prayer_title"
+            android:textSize="11.5sp"
             android:maxLines="1"
             android:textStyle="bold" />
         <TextView
@@ -82,8 +105,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="00:00"
-            android:textColor="#555555"
-            android:textSize="9.5sp"
+            android:textColor="@color/notification_prayer_time"
+            android:textSize="11sp"
+            android:textStyle="bold"
             android:maxLines="1"
             android:layout_marginTop="2dp" />
     </LinearLayout>
@@ -93,14 +117,21 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:layout_marginStart="3dp"
+        android:layout_marginEnd="3dp"
         android:orientation="vertical"
-        android:gravity="center">
+        android:gravity="center"
+        android:background="@drawable/notification_prayer_tile_bg"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="المغرب"
-            android:textColor="#222222"
-            android:textSize="10.5sp"
+            android:textColor="@color/notification_prayer_title"
+            android:textSize="11.5sp"
             android:maxLines="1"
             android:textStyle="bold" />
         <TextView
@@ -108,8 +139,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="00:00"
-            android:textColor="#555555"
-            android:textSize="9.5sp"
+            android:textColor="@color/notification_prayer_time"
+            android:textSize="11sp"
+            android:textStyle="bold"
             android:maxLines="1"
             android:layout_marginTop="2dp" />
     </LinearLayout>

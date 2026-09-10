@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notification Theme-Aware Colors (Dark Mode) -->
+    <color name="notification_prayer_title">#F8FAFC</color>
+    <color name="notification_prayer_time">#2DD4BF</color>
+    <color name="notification_prayer_box_bg">#273549</color>
+    <color name="notification_prayer_box_border">#3B4D66</color>
+</resources>

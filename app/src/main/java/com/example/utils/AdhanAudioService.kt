@@ -612,11 +612,9 @@ class AdhanAudioService : Service(), MediaPlayer.OnPreparedListener,
                 "⏹ إيقاف الأذان",
                 stopPendingIntent
             )
-            .setOngoing(false)
+            .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setGroup("GROUP_ADHAN_SERVICE_ISOLATED")
-            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_ALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setColor(0xFF14B8A6.toInt())
             .setSilent(true)

@@ -29,6 +29,7 @@ class AyahWorker(
             var ayahText: String? = null
             var surahName: String? = null
             var ayahNumber: Int = 1
+            var endAyahNumber: Int = 1
             var surahId: Int = 1
 
             try {
@@ -41,6 +42,7 @@ class AyahWorker(
                         ayahText = randomAyah.textUthmani
                         surahName = sName
                         ayahNumber = randomAyah.ayahNumber
+                        endAyahNumber = randomAyah.ayahNumber
                         surahId = randomAyah.surahId
                     }
                 }
@@ -54,6 +56,7 @@ class AyahWorker(
                 ayahText = fallback.textUthmani
                 surahName = fallback.surahName
                 ayahNumber = fallback.ayahNumber
+                endAyahNumber = fallback.endAyahNumber
                 surahId = fallback.surahId
             }
 
@@ -71,6 +74,7 @@ class AyahWorker(
                 surahName = surahName,
                 ayahNumber = ayahNumber,
                 surahId = surahId,
+                endAyahNumber = endAyahNumber,
                 customTitle = randomTitle
             )
 
