@@ -820,23 +820,33 @@ class PrayerTimesRepository(private val context: Context) {
         try {
             val owner = _githubRepoOwner.value.ifBlank { "moshraheem-sudo" }
             val repo = _githubRepoName.value.ifBlank { "hijri" }
-            val url = URL("https://raw.githubusercontent.com/$owner/$repo/main/hijri.json")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 7000
-            connection.readTimeout = 7000
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("User-Agent", "AndroidPrayerTimesApp/1.0")
+            val candidateUrls = listOf(
+                "https://cdn.jsdelivr.net/gh/$owner/$repo@main/hijri.json",
+                "https://raw.githubusercontent.com/$owner/$repo/main/hijri.json"
+            )
 
-            if (connection.responseCode == 200) {
-                val reader = BufferedReader(InputStreamReader(connection.inputStream))
-                val response = StringBuilder()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    response.append(line)
+            var jsonString: String? = null
+            for (urlStr in candidateUrls) {
+                try {
+                    val connection = URL(urlStr).openConnection() as HttpURLConnection
+                    connection.connectTimeout = 7000
+                    connection.readTimeout = 7000
+                    connection.requestMethod = "GET"
+                    connection.setRequestProperty("User-Agent", "AndroidPrayerTimesApp/1.0")
+
+                    if (connection.responseCode == 200) {
+                        jsonString = connection.inputStream.bufferedReader().use { it.readText() }
+                        connection.disconnect()
+                        break
+                    }
+                    connection.disconnect()
+                } catch (e: Exception) {
+                    // Try next candidate URL
                 }
-                reader.close()
+            }
 
-                val json = JSONObject(response.toString())
+            if (jsonString != null) {
+                val json = JSONObject(jsonString)
                 val hDay = json.getInt("hijri_day")
                 val hMonth = json.getInt("hijri_month")
                 val hYear = json.getInt("hijri_year")
@@ -909,7 +919,7 @@ class PrayerTimesRepository(private val context: Context) {
 
                 Result.success(formattedHijri)
             } else {
-                Result.failure(Exception("HTTP ${connection.responseCode}"))
+                Result.failure(Exception("تعذر مزامنة التاريخ الهجري مع الخادم"))
             }
         } catch (e: Exception) {
             Result.failure(e)

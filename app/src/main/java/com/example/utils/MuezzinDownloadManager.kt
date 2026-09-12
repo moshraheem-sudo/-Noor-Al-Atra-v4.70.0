@@ -8,6 +8,7 @@ import com.example.data.model.Muezzin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +32,7 @@ object MuezzinDownloadManager {
     private const val TAG = "MuezzinDownloadManager"
     private const val MIN_VALID_MP3_SIZE = 50 * 1024L // 50 KB minimum for valid MP3
 
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _downloadStatuses = MutableStateFlow<Map<String, MuezzinDownloadStatus>>(emptyMap())
     val downloadStatuses: StateFlow<Map<String, MuezzinDownloadStatus>> = _downloadStatuses.asStateFlow()
@@ -40,7 +41,7 @@ object MuezzinDownloadManager {
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(25, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .followRedirects(true)
@@ -51,14 +52,34 @@ object MuezzinDownloadManager {
 
     /**
      * Initializes statuses on app startup and triggers background download for all muezzins
-     * if files are not yet downloaded.
+     * if files are not yet downloaded. Prioritizes the user's selected muezzin first.
      */
     fun initAndAutoDownloadAll(context: Context) {
         checkLocalFiles(context)
         // Delay slightly on startup so initial UI loads smoothly before starting downloads
         scope.launch {
-            delay(1500)
-            downloadAllInBackground(context)
+            delay(2000)
+            val appContext = context.applicationContext
+            if (!isOnline(appContext)) return@launch
+
+            val prefs = appContext.getSharedPreferences("prayer_times_prefs", Context.MODE_PRIVATE)
+            val selectedId = prefs.getString("selected_muezzin_id", Muezzin.defaultMuezzin.id)
+            val selectedMuezzin = Muezzin.fromId(selectedId)
+
+            // Prioritize the user's selected muezzin first
+            if (!isAudioDownloaded(appContext, selectedMuezzin)) {
+                downloadMuezzinInternal(appContext, selectedMuezzin, maxRetries = 2)
+            }
+
+            // Sequentially download remaining muezzins in the background
+            val remainingMuezzins = Muezzin.values().filter { it.id != selectedMuezzin.id }
+            for (muezzin in remainingMuezzins) {
+                if (!isOnline(appContext)) break
+                if (!isAudioDownloaded(appContext, muezzin)) {
+                    delay(1000)
+                    downloadMuezzinInternal(appContext, muezzin, maxRetries = 2)
+                }
+            }
         }
     }
 
@@ -105,14 +126,16 @@ object MuezzinDownloadManager {
     fun downloadAllInBackground(context: Context) {
         val appContext = context.applicationContext
         scope.launch {
+            if (!isOnline(appContext)) return@launch
             val prefs = appContext.getSharedPreferences("prayer_times_prefs", Context.MODE_PRIVATE)
             val selectedId = prefs.getString("selected_muezzin_id", Muezzin.defaultMuezzin.id)
             val sortedMuezzins = Muezzin.values().sortedByDescending { it.id == selectedId }
 
-            sortedMuezzins.forEach { muezzin ->
+            for (muezzin in sortedMuezzins) {
+                if (!isOnline(appContext)) break
                 if (!isAudioDownloaded(appContext, muezzin)) {
                     downloadMuezzinInternal(appContext, muezzin, maxRetries = 2)
-                    delay(500) // Brief pause between sequential downloads to keep connection clean
+                    delay(800) // Brief pause between sequential downloads
                 }
             }
         }
@@ -131,7 +154,7 @@ object MuezzinDownloadManager {
         }
 
         val job = scope.launch {
-            downloadMuezzinInternal(appContext, muezzin, maxRetries = 3)
+            downloadMuezzinInternal(appContext, muezzin, maxRetries = 2)
         }
         activeDownloadJobs[muezzin.id] = job
     }
@@ -152,100 +175,115 @@ object MuezzinDownloadManager {
         val targetFile = getAudioFile(context, muezzin)
         val tempFile = File(targetFile.parentFile, "${targetFile.name}.tmp")
 
-        var attempt = 0
         var success = false
-        var lastErrorMessage = "خطأ غير محدد"
+        var lastErrorMessage = "خطأ في الاتصال"
 
-        while (attempt < maxRetries && !success) {
-            attempt++
-            try {
-                updateStatus(muezzin.id, MuezzinDownloadStatus.Downloading(0))
+        val candidateUrls = muezzin.getAllCandidateUrls()
+        var overallAttempt = 0
 
-                val request = Request.Builder()
-                    .url(muezzin.audioUrl)
-                    .header("User-Agent", "Mozilla/5.0 (Android; Mobile; PrayerTimesApp/1.0)")
-                    .header("Accept", "*/*")
-                    .header("Connection", "keep-alive")
-                    .build()
+        for (url in candidateUrls) {
+            if (success) break
 
-                val response = okHttpClient.newCall(request).execute()
+            var retryOnThisUrl = 0
+            val maxUrlRetries = if (candidateUrls.size > 1) 1 else maxRetries
 
-                if (!response.isSuccessful) {
-                    val code = response.code
-                    response.close()
-                    throw Exception("فشل الاستجابة من الخادم ($code)")
-                }
-
-                val body = response.body ?: throw Exception("محتوى الملف فارغ")
-                val totalLength = body.contentLength()
-                val inputStream: InputStream = body.byteStream()
-                val outputStream = FileOutputStream(tempFile)
+            while (retryOnThisUrl <= maxUrlRetries && !success) {
+                overallAttempt++
+                retryOnThisUrl++
 
                 try {
-                    val buffer = ByteArray(32 * 1024)
-                    var bytesRead: Int
-                    var totalBytesRead = 0L
-                    var lastProgressUpdate = 0L
+                    if (tempFile.exists()) {
+                        tempFile.delete()
+                    }
+                    updateStatus(muezzin.id, MuezzinDownloadStatus.Downloading(0))
 
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        outputStream.write(buffer, 0, bytesRead)
-                        totalBytesRead += bytesRead
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "Mozilla/5.0 (Android; Mobile; PrayerTimesApp/1.0)")
+                        .header("Accept", "*/*")
+                        .build()
 
-                        if (totalLength > 0) {
-                            val progress = ((totalBytesRead * 100) / totalLength).toInt()
-                            val now = System.currentTimeMillis()
-                            if (now - lastProgressUpdate > 250) {
-                                lastProgressUpdate = now
-                                updateStatus(muezzin.id, MuezzinDownloadStatus.Downloading(progress.coerceIn(0, 100)))
+                    val response = okHttpClient.newCall(request).execute()
+
+                    if (!response.isSuccessful) {
+                        val code = response.code
+                        response.close()
+                        throw Exception("استجابة الخادم: $code")
+                    }
+
+                    val body = response.body ?: throw Exception("محتوى الملف فارغ")
+                    val totalLength = body.contentLength()
+                    val inputStream: InputStream = body.byteStream()
+                    val outputStream = FileOutputStream(tempFile)
+
+                    try {
+                        val buffer = ByteArray(32 * 1024)
+                        var bytesRead: Int
+                        var totalBytesRead = 0L
+                        var lastProgressUpdate = 0L
+
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                            totalBytesRead += bytesRead
+
+                            if (totalLength > 0) {
+                                val progress = ((totalBytesRead * 100) / totalLength).toInt()
+                                val now = System.currentTimeMillis()
+                                if (now - lastProgressUpdate > 200) {
+                                    lastProgressUpdate = now
+                                    updateStatus(muezzin.id, MuezzinDownloadStatus.Downloading(progress.coerceIn(0, 100)))
+                                }
                             }
                         }
+
+                        outputStream.flush()
+                    } finally {
+                        try { outputStream.close() } catch (e: Exception) {}
+                        try { inputStream.close() } catch (e: Exception) {}
+                        try { response.close() } catch (e: Exception) {}
                     }
 
-                    outputStream.flush()
-                } finally {
-                    try { outputStream.close() } catch (e: Exception) {}
-                    try { inputStream.close() } catch (e: Exception) {}
-                    try { response.close() } catch (e: Exception) {}
-                }
-
-                if (tempFile.exists() && tempFile.length() >= MIN_VALID_MP3_SIZE) {
-                    if (targetFile.exists()) {
-                        targetFile.delete()
-                    }
-                    if (tempFile.renameTo(targetFile)) {
-                        Log.i(TAG, "Successfully downloaded ${muezzin.nameAr}: ${targetFile.length()} bytes")
-                        updateStatus(muezzin.id, MuezzinDownloadStatus.Downloaded(targetFile.length()))
-                        success = true
+                    if (tempFile.exists() && tempFile.length() >= MIN_VALID_MP3_SIZE) {
+                        if (targetFile.exists()) {
+                            targetFile.delete()
+                        }
+                        if (tempFile.renameTo(targetFile)) {
+                            Log.i(TAG, "Successfully downloaded ${muezzin.nameAr}: ${targetFile.length()} bytes")
+                            updateStatus(muezzin.id, MuezzinDownloadStatus.Downloaded(targetFile.length()))
+                            success = true
+                            break
+                        } else {
+                            throw Exception("تعذر حفظ الملف على الجهاز")
+                        }
                     } else {
-                        throw Exception("تعذر حفظ الملف على الجهاز")
+                        throw Exception("الملف غير مكتمل")
                     }
-                } else {
-                    throw Exception("الملف غير مكتمل")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Download attempt $attempt failed for ${muezzin.nameAr}: ${e.message}")
-                if (tempFile.exists()) {
-                    tempFile.delete()
-                }
-                lastErrorMessage = when {
-                    e.message?.contains("connection abort", ignoreCase = true) == true ||
-                    e.message?.contains("Software caused connection", ignoreCase = true) == true ->
-                        "انقطع الاتصال، أعد المحاولة"
-                    e.message?.contains("timeout", ignoreCase = true) == true ->
-                        "انتهت مهلة الاتصال بالخادم"
-                    e.message?.contains("No route to host", ignoreCase = true) == true ||
-                    e.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
-                        "لا يمكن الوصول إلى خادم التحميل"
-                    else -> "فشل التحميل: ${e.localizedMessage ?: "خطأ في الشبكة"}"
-                }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Download attempt $overallAttempt for ${muezzin.nameAr} via $url failed: ${e.message}")
+                    if (tempFile.exists()) {
+                        tempFile.delete()
+                    }
+                    lastErrorMessage = when {
+                        e.message?.contains("connection abort", ignoreCase = true) == true ||
+                        e.message?.contains("Software caused connection", ignoreCase = true) == true ->
+                            "انقطع الاتصال، جاري تجربة خادم بديل"
+                        e.message?.contains("timeout", ignoreCase = true) == true ->
+                            "انتهت مهلة الاتصال بالخادم"
+                        e.message?.contains("No route to host", ignoreCase = true) == true ||
+                        e.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
+                            "تعذر الوصول للخادم، جاري التبديل لمصدر بديل"
+                        else -> "فشل التحميل: ${e.localizedMessage ?: "خطأ في الشبكة"}"
+                    }
 
-                if (attempt < maxRetries) {
-                    delay(1200L * attempt) // Exponential backoff before retry
+                    if (retryOnThisUrl <= maxUrlRetries) {
+                        delay(1000L * retryOnThisUrl)
+                    }
                 }
             }
         }
 
         if (!success) {
+            Log.e(TAG, "All download candidates failed for ${muezzin.nameAr}: $lastErrorMessage")
             updateStatus(muezzin.id, MuezzinDownloadStatus.Failed(lastErrorMessage))
         }
         activeDownloadJobs.remove(muezzin.id)

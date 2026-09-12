@@ -1194,19 +1194,19 @@ fun PeopleListScreen(navController: NavHostController, onNavigateToTasbeeh: () -
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 2.dp, vertical = 2.dp)
-                            .clip(RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(16.dp))
                             .clickable {
                                 com.example.utils.AdhanAudioService.stopAdhan(context)
                             },
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF0F172A)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                        border = BorderStroke(2.dp, androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = pulseAlpha))
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        border = BorderStroke(1.5.dp, androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = pulseAlpha.coerceAtLeast(0.4f)))
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -1216,33 +1216,40 @@ fun PeopleListScreen(navController: NavHostController, onNavigateToTasbeeh: () -
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
-                                        .background(androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = 0.18f), CircleShape)
-                                        .border(1.5.dp, androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = pulseAlpha), CircleShape),
+                                        .size(38.dp)
+                                        .background(androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = 0.16f), CircleShape)
+                                        .border(1.dp, androidx.compose.ui.graphics.Color(0xFFEF4444).copy(alpha = pulseAlpha), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.NotificationsActive,
                                         contentDescription = "Adhan Playing",
                                         tint = androidx.compose.ui.graphics.Color(0xFFEF4444),
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = "الأذان يرفع الآن المبارك",
+                                        text = "الآن يرفع الأذان المبارك",
                                         fontWeight = FontWeight.Bold,
                                         color = androidx.compose.ui.graphics.Color.White,
-                                        fontSize = 15.sp
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "انقر هنا أو على الزر لإيقاف الصوت",
+                                        text = "انقر هنا لإيقاف الصوت",
                                         color = androidx.compose.ui.graphics.Color(0xFF94A3B8),
-                                        fontSize = 12.sp
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
                             }
+
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Button(
                                 onClick = { com.example.utils.AdhanAudioService.stopAdhan(context) },
@@ -1250,19 +1257,19 @@ fun PeopleListScreen(navController: NavHostController, onNavigateToTasbeeh: () -
                                     containerColor = androidx.compose.ui.graphics.Color(0xFFDC2626),
                                     contentColor = androidx.compose.ui.graphics.Color.White
                                 ),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
                                     contentDescription = "Stop",
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "إيقاف الأذان",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.5.sp
                                 )
                             }
                         }

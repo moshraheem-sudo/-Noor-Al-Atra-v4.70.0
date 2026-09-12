@@ -6,48 +6,78 @@ enum class Muezzin(
     val nameEn: String,
     val audioUrl: String,
     val descriptionAr: String,
-    val descriptionEn: String
+    val descriptionEn: String,
+    val fallbackUrls: List<String> = emptyList()
 ) {
     OSAMA_AL_KARBALAI(
         id = "osama_karbalai",
         nameAr = "أسامة الكربلائي",
         nameEn = "Osama Al-Karbalai",
-        audioUrl = "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%A3%D8%B3%D8%A7%D9%85%D8%A9%20%D8%A7%D9%84%D9%83%D8%B1%D8%A8%D9%84%D8%A7%D8%A6%D9%8A%20.mp3",
+        audioUrl = "https://cdn.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A3%D8%B3%D8%A7%D9%85%D8%A9%20%D8%A7%D9%84%D9%83%D8%B1%D8%A8%D9%84%D8%A7%D8%A6%D9%8A%20.mp3",
         descriptionAr = "مؤذن العتبتين المقدستين الحسينية والعباسية",
-        descriptionEn = "Holy Karbala Shrines Muezzin"
+        descriptionEn = "Holy Karbala Shrines Muezzin",
+        fallbackUrls = listOf(
+            "https://fastly.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A3%D8%B3%D8%A7%D9%85%D8%A9%20%D8%A7%D9%84%D9%83%D8%B1%D8%A8%D9%84%D8%A7%D8%A6%D9%8A%20.mp3",
+            "https://gcore.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A3%D8%B3%D8%A7%D9%85%D8%A9%20%D8%A7%D9%84%D9%83%D8%B1%D8%A8%D9%84%D8%A7%D8%A6%D9%8A%20.mp3",
+            "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%A3%D8%B3%D8%A7%D9%85%D8%A9%20%D8%A7%D9%84%D9%83%D8%B1%D8%A8%D9%84%D8%A7%D8%A6%D9%8A%20.mp3"
+        )
     ),
     RAFEA_AL_AMIRI(
         id = "rafea_amiri",
         nameAr = "رافع العامري",
         nameEn = "Rafea Al-Amiri",
-        audioUrl = "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%B1%D8%A7%D9%81%D8%B9%20%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%B1%D9%8A%20.mp3",
+        audioUrl = "https://cdn.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%B1%D8%A7%D9%81%D8%B9%20%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%B1%D9%8A%20.mp3",
         descriptionAr = "المقرئ والمؤذن العراقي المعروف",
-        descriptionEn = "Renowned Iraqi Qari & Muezzin"
+        descriptionEn = "Renowned Iraqi Qari & Muezzin",
+        fallbackUrls = listOf(
+            "https://fastly.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%B1%D8%A7%D9%81%D8%B9%20%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%B1%D9%8A%20.mp3",
+            "https://gcore.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%B1%D8%A7%D9%81%D8%B9%20%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%B1%D9%8A%20.mp3",
+            "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%B1%D8%A7%D9%81%D8%B9%20%D8%A7%D9%84%D8%B9%D8%A7%D9%85%D8%B1%D9%8A%20.mp3"
+        )
     ),
     AMER_AL_KADHIMI(
         id = "amer_kadhimi",
         nameAr = "عامر الكاظمي",
         nameEn = "Amer Al-Kadhimi",
-        audioUrl = "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%B9%D8%A7%D9%85%D8%B1%20%D8%A7%D9%84%D9%83%D8%A7%D8%B8%D9%85%D9%8A%20.mp3",
+        audioUrl = "https://cdn.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%B9%D8%A7%D9%85%D8%B1%20%D8%A7%D9%84%D9%83%D8%A7%D8%B8%D9%85%D9%8A%20.mp3",
         descriptionAr = "مؤذن العتبة الكاظمية المقدسة",
-        descriptionEn = "Holy Kadhimiya Shrine Muezzin"
+        descriptionEn = "Holy Kadhimiya Shrine Muezzin",
+        fallbackUrls = listOf(
+            "https://fastly.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%B9%D8%A7%D9%85%D8%B1%20%D8%A7%D9%84%D9%83%D8%A7%D8%B8%D9%85%D9%8A%20.mp3",
+            "https://gcore.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%B9%D8%A7%D9%85%D8%B1%20%D8%A7%D9%84%D9%83%D8%A7%D8%B8%D9%85%D9%8A%20.mp3",
+            "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%B9%D8%A7%D9%85%D8%B1%20%D8%A7%D9%84%D9%83%D8%A7%D8%B8%D9%85%D9%8A%20.mp3"
+        )
     ),
     BURATHA_MOSQUE(
         id = "adhan_buratha",
         nameAr = "أذان براثا",
         nameEn = "Buratha Mosque",
-        audioUrl = "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%A7%D8%B0%D8%A7%D9%86%20%D8%A8%D8%B1%D8%A7%D8%AB%D8%A7.mp3",
+        audioUrl = "https://cdn.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A7%D8%B0%D8%A7%D9%86%20%D8%A8%D8%B1%D8%A7%D8%AB%D8%A7.mp3",
         descriptionAr = "أذان جامع براثا المعظم",
-        descriptionEn = "Historical Buratha Mosque Adhan"
+        descriptionEn = "Historical Buratha Mosque Adhan",
+        fallbackUrls = listOf(
+            "https://fastly.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A7%D8%B0%D8%A7%D9%86%20%D8%A8%D8%B1%D8%A7%D8%AB%D8%A7.mp3",
+            "https://gcore.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A7%D8%B0%D8%A7%D9%86%20%D8%A8%D8%B1%D8%A7%D8%AB%D8%A7.mp3",
+            "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%A7%D8%B0%D8%A7%D9%86%20%D8%A8%D8%B1%D8%A7%D8%AB%D8%A7.mp3"
+        )
     ),
     ABATHAR_AL_HALWAJI(
         id = "abathar_halwaji",
         nameAr = "أباذر الحلواجي",
         nameEn = "Abathar Al-Halwaji",
-        audioUrl = "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%A7%D8%A8%D8%A7%D8%B0%D8%B1%20%D8%A7%D9%84%D8%AD%D9%84%D9%88%D8%A7%D8%AC%D9%8A.mp3",
+        audioUrl = "https://cdn.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A7%D8%A8%D8%A7%D8%B0%D8%B1%20%D8%A7%D9%84%D8%AD%D9%84%D9%88%D8%A7%D8%AC%D9%8A.mp3",
         descriptionAr = "المقرئ والمنشد أباذر الحلواجي",
-        descriptionEn = "Renowned Qari & Muezzin Abathar Al-Halwaji"
+        descriptionEn = "Renowned Qari & Muezzin Abathar Al-Halwaji",
+        fallbackUrls = listOf(
+            "https://fastly.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A7%D8%A8%D8%A7%D8%B0%D8%B1%20%D8%A7%D9%84%D8%AD%D9%84%D9%88%D8%A7%D8%AC%D9%8A.mp3",
+            "https://gcore.jsdelivr.net/gh/moshraheem-sudo/Muezzin@main/%D8%A7%D8%A8%D8%A7%D8%B0%D8%B1%20%D8%A7%D9%84%D8%AD%D9%84%D9%88%D8%A7%D8%AC%D9%8A.mp3",
+            "https://raw.githubusercontent.com/moshraheem-sudo/Muezzin/main/%D8%A7%D8%A8%D8%A7%D8%B0%D8%B1%20%D8%A7%D9%84%D8%AD%D9%84%D9%88%D8%A7%D8%AC%D9%8A.mp3"
+        )
     );
+
+    fun getAllCandidateUrls(): List<String> {
+        return (listOf(audioUrl) + fallbackUrls).distinct()
+    }
 
     companion object {
         val defaultMuezzin = AMER_AL_KADHIMI

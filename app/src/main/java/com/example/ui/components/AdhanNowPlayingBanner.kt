@@ -41,24 +41,24 @@ fun AdhanNowPlayingBanner(
     )
 
     val isAr = currentLanguage == AppLanguage.ARABIC
-    val title = if (isAr) "الأذان يرفع الآن" else "Adhan is playing"
+    val title = if (isAr) "الآن يرفع الأذان المبارك" else "Adhan is playing"
     val subtitle = if (isAr) "اضغط هنا لإيقاف الصوت" else "Tap to stop audio"
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable { onStop() },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = AppColors.current.heroGradientStart),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         border = BorderStroke(1.5.dp, AppColors.current.tealAccentLight.copy(alpha = pulseAlpha))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -68,7 +68,7 @@ fun AdhanNowPlayingBanner(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(38.dp)
                         .background(AppColors.current.tealGlow10, CircleShape)
                         .padding(8.dp),
                     contentAlignment = Alignment.Center
@@ -77,21 +77,24 @@ fun AdhanNowPlayingBanner(
                         imageVector = Icons.Rounded.NotificationsActive,
                         contentDescription = "Adhan Playing",
                         tint = AppColors.current.tealAccentLight.copy(alpha = pulseAlpha),
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
                         text = title,
                         fontWeight = FontWeight.Bold,
                         color = AppColors.current.textTitle,
-                        fontSize = 15.sp
+                        fontSize = 13.sp,
+                        maxLines = 1
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
                         color = AppColors.current.tealAccentLight,
-                        fontSize = 12.sp
+                        fontSize = 11.sp,
+                        maxLines = 1
                     )
                 }
             }
@@ -100,12 +103,13 @@ fun AdhanNowPlayingBanner(
                 onClick = onStop,
                 modifier = Modifier
                     .background(AppColors.current.surface, CircleShape)
-                    .size(40.dp)
+                    .size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = "Stop",
-                    tint = Color(0xFFE53935)
+                    tint = Color(0xFFE53935),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }

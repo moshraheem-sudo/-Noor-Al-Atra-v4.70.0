@@ -204,6 +204,7 @@ fun PrayerSettingsScreen(
     var isNotificationsExpanded by remember { mutableStateOf(false) }
     var isMuezzinSectionExpanded by remember { mutableStateOf(false) }
     var isHijriExpanded by remember { mutableStateOf(false) }
+    var isUpdatesSectionExpanded by remember { mutableStateOf(false) }
 
     var isCustomHijriDialogOpen by remember { mutableStateOf(false) }
     var customHijriInputText by remember { mutableStateOf(manualHijriCustomDate ?: (prayerData?.hijriDate ?: "")) }
@@ -2148,6 +2149,180 @@ fun PrayerSettingsScreen(
                                 color = if (hijriSyncStatus.contains("فشل") || hijriSyncStatus.contains("Failed")) MaterialTheme.colorScheme.error else AppColors.current.tealAccentLight,
                                 fontSize = 11.sp
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section: Application Updates & GitHub Sync
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("settings_app_updates_card"),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { isUpdatesSectionExpanded = !isUpdatesSectionExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(AppColors.current.tealGlow20),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                tint = AppColors.current.tealAccentLight,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (currentLanguage == AppLanguage.ARABIC) "تحديث التطبيق (GitHub)" else "App Updates (GitHub)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = AppColors.current.textTitle
+                            )
+                            Text(
+                                text = if (currentLanguage == AppLanguage.ARABIC) "فحص وتثبيت أحدث الإصدارات مباشرة" else "Check and install latest releases directly",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AppColors.current.textSubtle,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = if (isUpdatesSectionExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isUpdatesSectionExpanded) "Collapse" else "Expand",
+                        tint = AppColors.current.tealAccentLight,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                AnimatedVisibility(visible = isUpdatesSectionExpanded) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                        // Current Version info box
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (currentLanguage == AppLanguage.ARABIC) "الإصدار المثبت حالياً:" else "Current Installed Version:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = AppColors.current.textMain
+                            )
+                            Text(
+                                text = "v${com.example.BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = AppColors.current.tealAccentLight
+                            )
+                        }
+
+                        // Check / Update Button
+                        Button(
+                            onClick = onCheckForUpdates,
+                            enabled = appUpdateStatus !is UpdateCheckStatus.Checking && appUpdateStatus !is UpdateCheckStatus.Downloading,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppColors.current.tealGlow20,
+                                contentColor = AppColors.current.tealAccentLight,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                disabledContentColor = AppColors.current.textSubtle
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .testTag("settings_check_update_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (appUpdateStatus is UpdateCheckStatus.Checking) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = AppColors.current.tealAccentLight,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (currentLanguage == AppLanguage.ARABIC) "جارٍ فحص التحديثات..." else "Checking for updates...",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Update,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (currentLanguage == AppLanguage.ARABIC) "التحقق من وجود تحديث جديد الآن" else "Check for Updates Now",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Status message
+                        when (appUpdateStatus) {
+                            is UpdateCheckStatus.UpToDate -> {
+                                Text(
+                                    text = if (currentLanguage == AppLanguage.ARABIC) "✓ تطبيقك محدّث بأحدث إصدار متوفر." else "✓ Your app is up to date.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AppColors.current.tealAccentLight,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            is UpdateCheckStatus.Error -> {
+                                Text(
+                                    text = appUpdateStatus.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            else -> {}
                         }
                     }
                 }
